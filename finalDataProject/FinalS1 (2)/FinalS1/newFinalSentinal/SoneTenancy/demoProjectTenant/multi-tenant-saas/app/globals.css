@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+/* ── Light mode variables ─────────────────────────────────────────────────── */
+:root {
+  --background: #f9fafb;
+  --foreground: #111827;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e5e7eb;
+  --topbar-bg: #ffffff;
+  --topbar-border: #e5e7eb;
+  --card-bg: #ffffff;
+  --card-border: #e5e7eb;
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --muted: #6b7280;
+  --muted-bg: #f3f4f6;
+}
+
+/* ── Dark mode variables ──────────────────────────────────────────────────── */
+.dark {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --sidebar-bg: #1e293b;
+  --sidebar-border: #334155;
+  --topbar-bg: #1e293b;
+  --topbar-border: #334155;
+  --card-bg: #1e293b;
+  --card-border: #334155;
+  --input-bg: #0f172a;
+  --input-border: #475569;
+  --muted: #94a3b8;
+  --muted-bg: #334155;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ── Tailwind dark mode via class strategy ────────────────────────────────── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ── React Grid Layout drag placeholder ──────────────────────────────────── */
+.react-grid-placeholder {
+  background: #6366f1 !important;
+  opacity: 0.15 !important;
+  border-radius: 16px !important;
+  border: 2px dashed #6366f1 !important;
+}
+
+.dark .react-grid-placeholder {
+  background: #818cf8 !important;
+  border-color: #818cf8 !important;
+}
+
+/* ── Resize handle visibility ─────────────────────────────────────────────── */
+.react-resizable-handle {
+  position: absolute;
+  background-image: none !important;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 20;
+}
+.react-grid-item:hover .react-resizable-handle {
+  opacity: 1;
+}
+
+/* ── Corner handles ───────────────────────────────────────────────────────── */
+.react-resizable-handle-se,
+.react-resizable-handle-sw,
+.react-resizable-handle-ne,
+.react-resizable-handle-nw {
+  width: 12px !important;
+  height: 12px !important;
+  background: #6366f1 !important;
+  border-radius: 50% !important;
+  border: 2px solid white !important;
+}
+.react-resizable-handle-se { bottom: 4px !important; right: 4px !important; cursor: se-resize !important; }
+.react-resizable-handle-sw { bottom: 4px !important; left: 4px !important; cursor: sw-resize !important; }
+.react-resizable-handle-ne { top: 4px !important; right: 4px !important; cursor: ne-resize !important; }
+.react-resizable-handle-nw { top: 4px !important; left: 4px !important; cursor: nw-resize !important; }
+
+/* ── Edge handles ─────────────────────────────────────────────────────────── */
+.react-resizable-handle-s,
+.react-resizable-handle-n {
+  width: 36px !important;
+  height: 6px !important;
+  background: #6366f1 !important;
+  border-radius: 3px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+.react-resizable-handle-s { bottom: 4px !important; cursor: s-resize !important; }
+.react-resizable-handle-n { top: 4px !important; cursor: n-resize !important; }
+
+.react-resizable-handle-e,
+.react-resizable-handle-w {
+  width: 6px !important;
+  height: 36px !important;
+  background: #6366f1 !important;
+  border-radius: 3px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+}
+.react-resizable-handle-e { right: 4px !important; cursor: e-resize !important; }
+.react-resizable-handle-w { left: 4px !important; cursor: w-resize !important; }
+
+/* Dark mode handle color */
+.dark .react-resizable-handle-se,
+.dark .react-resizable-handle-sw,
+.dark .react-resizable-handle-ne,
+.dark .react-resizable-handle-nw,
+.dark .react-resizable-handle-s,
+.dark .react-resizable-handle-n,
+.dark .react-resizable-handle-e,
+.dark .react-resizable-handle-w {
+  background: #818cf8 !important;
+}
+
+/* ── Responsive layout ────────────────────────────────────────────────────── */
+
+/* Prevent horizontal overflow on the whole app */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Grid layout container should never overflow */
+.react-grid-layout {
+  min-width: 0;
+}
+
+.react-grid-item {
+  min-width: 0;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--card-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
