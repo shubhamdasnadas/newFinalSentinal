@@ -4,6 +4,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "../../../lib/auth";
+// ✅ ADDED: import model for DB storage
+import { SentinelOneModel } from "../../../models/OrgModels";
 
 function getOrgSlug(user: any): string | null {
   return user.activeOrgSlug || user.orgSlug || null;
@@ -58,8 +60,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // ✅ CHANGED: Read accountId from query param, apiToken from header (user-supplied)
+    const { searchParams } = new URL(req.url);
+    const accountId =
+      searchParams.get("accountId") ||
+      process.env.S1_ACCOUNT_ID ||
+      "2099936112556801909";
+
+    const apiToken =
+      req.headers.get("x-s1-token") || process.env.S1_API_TOKEN;
+
     const baseUrl = process.env.S1_BASE_URL;
-    const apiToken = process.env.S1_API_TOKEN;
 
     if (!baseUrl || !apiToken) {
       return NextResponse.json(
@@ -69,7 +80,6 @@ export async function GET(req: NextRequest) {
     }
 
     const cleanBase = baseUrl.replace(/\/$/, "");
-    const accountId = "2099936112556801909";
 
     const allData: any[] = [];
     const seenCursors = new Set<string>();
@@ -138,6 +148,11 @@ export async function GET(req: NextRequest) {
 
       page++;
       await sleep(1500);
+    }
+
+    // ✅ ADDED: Store fetched threats into DB
+    if (allData.length > 0) {
+      await SentinelOneModel.upsertThreats(orgSlug, allData);
     }
 
     return NextResponse.json({

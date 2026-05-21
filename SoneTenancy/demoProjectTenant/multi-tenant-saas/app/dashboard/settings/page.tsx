@@ -3,13 +3,15 @@
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useState } from "react";
+import SentinelOneSync from "../syncfile/sentinelOneSync/SentinelOneSync";
 
 export default function SettingsPage() {
   const { user, activeOrgName, activeOrgSlug } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [saved, setSaved] = useState(false);
   const [displayName, setDisplayName] = useState(user?.name || "");
-
+  const [accountID, setAccountID] = useState("");
+  const [tokenKey, setTokenKey] = useState("");
   // ── Sync All ──────────────────────────────────────────────────────────────
   const [syncAllStatus, setSyncAllStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const [syncAllResult, setSyncAllResult] = useState<Record<string, unknown> | null>(null);
@@ -112,6 +114,23 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSentinelsync =async () => {
+    const response = await fetch(
+      `/api/sentinelone/threats?accountId=${accountID}`,
+      {
+        method: "GET",
+        headers: {
+          "x-s1-token": tokenKey,
+          "x-s1-url": "https://your-console.sentinelone.net",
+        },
+      }
+    );
+
+    const result = await response.json();
+
+    console.log(result);
+  }
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     setSaved(true);
@@ -196,23 +215,20 @@ export default function SettingsPage() {
             {syncAllResult && (
               <div className="mt-4 space-y-2">
                 {Object.entries(syncAllResult.results as Record<string, Record<string, unknown>> ?? {}).map(([key, val]) => (
-                  <div key={key} className={`flex items-start gap-3 px-4 py-3 rounded-xl text-sm border ${
-                    val.status === "ok"
-                      ? "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800"
-                      : val.status === "skipped"
+                  <div key={key} className={`flex items-start gap-3 px-4 py-3 rounded-xl text-sm border ${val.status === "ok"
+                    ? "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800"
+                    : val.status === "skipped"
                       ? "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800"
                       : "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800"
-                  }`}>
-                    <span className={`font-semibold capitalize w-28 flex-shrink-0 ${
-                      val.status === "ok" ? "text-green-700 dark:text-green-400"
-                      : val.status === "skipped" ? "text-amber-700 dark:text-amber-400"
-                      : "text-red-600"
-                    }`}>{key}</span>
-                    <span className={`${
-                      val.status === "ok" ? "text-green-700 dark:text-green-300"
-                      : val.status === "skipped" ? "text-amber-700 dark:text-amber-300"
-                      : "text-red-600"
                     }`}>
+                    <span className={`font-semibold capitalize w-28 flex-shrink-0 ${val.status === "ok" ? "text-green-700 dark:text-green-400"
+                      : val.status === "skipped" ? "text-amber-700 dark:text-amber-400"
+                        : "text-red-600"
+                      }`}>{key}</span>
+                    <span className={`${val.status === "ok" ? "text-green-700 dark:text-green-300"
+                      : val.status === "skipped" ? "text-amber-700 dark:text-amber-300"
+                        : "text-red-600"
+                      }`}>
                       {val.status === "ok" && key === "sentinelone" && `${val.threats} threats, ${val.agents} agents saved`}
                       {val.status === "ok" && key === "checkpoint" && `${val.upserted} events saved (${val.totalInDb} total in DB)`}
                       {val.status === "skipped" && `Skipped — ${val.reason}`}
@@ -350,10 +366,18 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
+
+
         </div>
 
-        {/* Appearance */}
+            {/* Sentinel One sync */}
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
+            <SentinelOneSync />
+        </div>
+
+
+        {/* Appearance */}
+        {/* <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
           <div className="px-6 py-4 border-b border-[var(--card-border)] bg-[var(--muted-bg)]">
             <h3 className="font-semibold text-[var(--foreground)]">Appearance</h3>
           </div>
@@ -365,9 +389,8 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={toggleTheme}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  theme === "dark" ? "bg-indigo-600" : "bg-gray-300"
-                }`}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${theme === "dark" ? "bg-indigo-600" : "bg-gray-300"
+                  }`}
                 aria-label="Toggle theme"
               >
                 <span
@@ -380,10 +403,10 @@ export default function SettingsPage() {
               Currently: <span className="font-medium text-[var(--foreground)] capitalize">{theme} mode</span>
             </p>
           </div>
-        </div>
+        </div> */}
 
         {/* Preferences */}
-        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
+        {/* <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
           <div className="px-6 py-4 border-b border-[var(--card-border)] bg-[var(--muted-bg)]">
             <h3 className="font-semibold text-[var(--foreground)]">Preferences</h3>
           </div>
@@ -423,10 +446,10 @@ export default function SettingsPage() {
               )}
             </div>
           </form>
-        </div>
+        </div> */}
 
         {/* Security */}
-        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
+        {/* <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
           <div className="px-6 py-4 border-b border-[var(--card-border)] bg-[var(--muted-bg)]">
             <h3 className="font-semibold text-[var(--foreground)]">Security</h3>
           </div>
@@ -459,7 +482,7 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Danger zone */}
         <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-2xl p-6">

@@ -422,7 +422,6 @@ export const BillingModel = {
     status?: string;
     billing_date?: Date;
   }): Promise<Billing> {
-    // billing table has only one row per org DB — use id-based upsert
     const rows = await orgQuery<Billing>(
       data.org_slug,
       `INSERT INTO billing (plan, amount, currency, status, billing_date)
@@ -442,10 +441,8 @@ export const BillingModel = {
         data.billing_date ?? null,
       ]
     );
-    // If no row existed, the INSERT above created one. If one existed, we need UPDATE.
     if (rows[0]) return rows[0];
 
-    // Fallback: update the existing single row
     const existing = await orgQuery<Billing>(data.org_slug, "SELECT id FROM billing LIMIT 1");
     if (existing[0]) {
       const updated = await orgQuery<Billing>(
@@ -506,7 +503,6 @@ export interface CheckpointEvent {
 }
 
 export const CheckpointEventModel = {
-  /** Ensure the table exists (safe to call on every sync) */
   async ensureTable(orgSlug: string): Promise<void> {
     await orgQuery(
       orgSlug,
@@ -535,7 +531,6 @@ export const CheckpointEventModel = {
     );
   },
 
-  /** Upsert a batch of raw events from the Checkpoint API */
   async upsertBatch(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
     if (records.length === 0) return 0;
     let upserted = 0;
@@ -581,7 +576,6 @@ export const CheckpointEventModel = {
     return upserted;
   },
 
-  /** Fetch all events from DB, newest first */
   async findAll(orgSlug: string): Promise<CheckpointEvent[]> {
     return orgQuery<CheckpointEvent>(
       orgSlug,
@@ -589,7 +583,6 @@ export const CheckpointEventModel = {
     );
   },
 
-  /** Count total events */
   async count(orgSlug: string): Promise<number> {
     const rows = await orgQuery<{ count: string }>(
       orgSlug,
@@ -598,7 +591,6 @@ export const CheckpointEventModel = {
     return parseInt(rows[0]?.count ?? "0", 10);
   },
 
-  /** Last sync time */
   async lastSyncedAt(orgSlug: string): Promise<Date | null> {
     const rows = await orgQuery<{ synced_at: Date }>(
       orgSlug,
@@ -609,61 +601,220 @@ export const CheckpointEventModel = {
 };
 
 // ─── SentinelOne ─────────────────────────────────────────────────────────────
+// ✅ CHANGED: ensureTables now creates all 5 tables.
+// ✅ ADDED: upsertThreats, upsertAgents, upsertRisks, upsertRiskApplications, upsertRssData
+
+// ─── SentinelOne ─────────────────────────────────────────────────────────────
 
 export const SentinelOneModel = {
-  /** Ensure both tables exist (idempotent) */
   async ensureTables(orgSlug: string): Promise<void> {
     await orgQuery(orgSlug, `
       CREATE TABLE IF NOT EXISTS s1_threats (
-        id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-        data      JSONB       NOT NULL,
-        synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        threat_id   TEXT        UNIQUE,
+        data        JSONB       NOT NULL,
+        synced_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS s1_agents (
-        id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-        data      JSONB       NOT NULL,
-        synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        agent_id    TEXT        UNIQUE,
+        data        JSONB       NOT NULL,
+        synced_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS s1_application_agent (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        app_agent_id TEXT       UNIQUE,
+        data        JSONB       NOT NULL,
+        synced_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS s1_application_cve (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        cve_id      TEXT        UNIQUE,
+        data        JSONB       NOT NULL,
+        synced_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS s1_device_control (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        device_id   TEXT        UNIQUE,
+        data        JSONB       NOT NULL,
+        synced_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS s1_rss (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        rss_id      TEXT        UNIQUE,
+        data        JSONB       NOT NULL,
+        synced_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS s1_threat_count (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        count_id    TEXT        UNIQUE,
+        data        JSONB       NOT NULL,
+        synced_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Add missing columns to already-existing tables
+    await orgQuery(orgSlug, `
+      ALTER TABLE s1_threats            ADD COLUMN IF NOT EXISTS threat_id    TEXT UNIQUE;
+      ALTER TABLE s1_agents             ADD COLUMN IF NOT EXISTS agent_id     TEXT UNIQUE;
+      ALTER TABLE s1_application_agent  ADD COLUMN IF NOT EXISTS app_agent_id TEXT UNIQUE;
+      ALTER TABLE s1_application_cve    ADD COLUMN IF NOT EXISTS cve_id       TEXT UNIQUE;
+      ALTER TABLE s1_device_control     ADD COLUMN IF NOT EXISTS device_id    TEXT UNIQUE;
+      ALTER TABLE s1_rss                ADD COLUMN IF NOT EXISTS rss_id       TEXT UNIQUE;
+      ALTER TABLE s1_threat_count       ADD COLUMN IF NOT EXISTS count_id     TEXT UNIQUE;
+    `);
+
+    await orgQuery(orgSlug, `
+      CREATE INDEX IF NOT EXISTS idx_s1_threats_threat_id       ON s1_threats(threat_id);
+      CREATE INDEX IF NOT EXISTS idx_s1_agents_agent_id         ON s1_agents(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_s1_app_agent_id            ON s1_application_agent(app_agent_id);
+      CREATE INDEX IF NOT EXISTS idx_s1_cve_id                  ON s1_application_cve(cve_id);
+      CREATE INDEX IF NOT EXISTS idx_s1_device_id               ON s1_device_control(device_id);
+      CREATE INDEX IF NOT EXISTS idx_s1_rss_rss_id              ON s1_rss(rss_id);
+      CREATE INDEX IF NOT EXISTS idx_s1_threat_count_id         ON s1_threat_count(count_id);
     `);
   },
 
   async findAllThreats(orgSlug: string): Promise<unknown[]> {
     await this.ensureTables(orgSlug);
-    const rows = await orgQuery<{ data: unknown }>(
-      orgSlug,
-      "SELECT data FROM s1_threats ORDER BY synced_at DESC"
-    );
-    return rows.map((r) => {
-      if (typeof r.data === "string") {
-        try { return JSON.parse(r.data); } catch { return r.data; }
-      }
-      return r.data;
-    });
+    const rows = await orgQuery<{ data: unknown }>(orgSlug, "SELECT data FROM s1_threats ORDER BY synced_at DESC");
+    return rows.map((r) => (typeof r.data === "string" ? JSON.parse(r.data) : r.data));
   },
 
   async findAllAgents(orgSlug: string): Promise<unknown[]> {
     await this.ensureTables(orgSlug);
-    const rows = await orgQuery<{ data: unknown }>(
-      orgSlug,
-      "SELECT data FROM s1_agents ORDER BY synced_at DESC"
-    );
-    return rows.map((r) => {
-      if (typeof r.data === "string") {
-        try { return JSON.parse(r.data); } catch { return r.data; }
-      }
-      return r.data;
-    });
+    const rows = await orgQuery<{ data: unknown }>(orgSlug, "SELECT data FROM s1_agents ORDER BY synced_at DESC");
+    return rows.map((r) => (typeof r.data === "string" ? JSON.parse(r.data) : r.data));
   },
 
   async lastSyncedAt(orgSlug: string): Promise<Date | null> {
     await this.ensureTables(orgSlug);
-    const rows = await orgQuery<{ synced_at: Date }>(
-      orgSlug,
-      "SELECT synced_at FROM s1_threats ORDER BY synced_at DESC LIMIT 1"
-    );
+    const rows = await orgQuery<{ synced_at: Date }>(orgSlug, "SELECT synced_at FROM s1_threats ORDER BY synced_at DESC LIMIT 1");
     return rows[0]?.synced_at ?? null;
   },
+
+  // ── sentinelone_threats ───────────────────────────────────────────────────
+  async upsertThreats(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
+    await this.ensureTables(orgSlug);
+    let count = 0;
+    for (const r of records) {
+      const threatId = (r.id ?? r.threatId ?? "") as string;
+      await orgQuery(orgSlug,
+        `INSERT INTO s1_threats (threat_id, data, synced_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (threat_id) DO UPDATE SET data = EXCLUDED.data, synced_at = NOW()`,
+        [threatId || null, JSON.stringify(r)]
+      );
+      count++;
+    }
+    return count;
+  },
+
+  // ── sentinelone_agentinfo ─────────────────────────────────────────────────
+  async upsertAgents(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
+    await this.ensureTables(orgSlug);
+    let count = 0;
+    for (const r of records) {
+      const agentId = (r.id ?? r.agentId ?? "") as string;
+      await orgQuery(orgSlug,
+        `INSERT INTO s1_agents (agent_id, data, synced_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (agent_id) DO UPDATE SET data = EXCLUDED.data, synced_at = NOW()`,
+        [agentId || null, JSON.stringify(r)]
+      );
+      count++;
+    }
+    return count;
+  },
+
+  // ── sentinelone_applicationagent ──────────────────────────────────────────
+  async upsertApplicationAgent(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
+    await this.ensureTables(orgSlug);
+    let count = 0;
+    for (const r of records) {
+      const appAgentId = (r.id ?? r.agentId ?? r.applicationId ?? "") as string;
+      await orgQuery(orgSlug,
+        `INSERT INTO s1_application_agent (app_agent_id, data, synced_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (app_agent_id) DO UPDATE SET data = EXCLUDED.data, synced_at = NOW()`,
+        [appAgentId || null, JSON.stringify(r)]
+      );
+      count++;
+    }
+    return count;
+  },
+
+  // ── sentinelone_applicationCVE ────────────────────────────────────────────
+  async upsertApplicationCVE(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
+    await this.ensureTables(orgSlug);
+    let count = 0;
+    for (const r of records) {
+      const cveId = (r.id ?? r.cveId ?? r.cve_id ?? "") as string;
+      await orgQuery(orgSlug,
+        `INSERT INTO s1_application_cve (cve_id, data, synced_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (cve_id) DO UPDATE SET data = EXCLUDED.data, synced_at = NOW()`,
+        [cveId || null, JSON.stringify(r)]
+      );
+      count++;
+    }
+    return count;
+  },
+
+  // ── sentinelone_devicecontrol ─────────────────────────────────────────────
+  async upsertDeviceControl(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
+    await this.ensureTables(orgSlug);
+    let count = 0;
+    for (const r of records) {
+      const deviceId = (r.id ?? r.deviceId ?? r.device_id ?? "") as string;
+      await orgQuery(orgSlug,
+        `INSERT INTO s1_device_control (device_id, data, synced_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (device_id) DO UPDATE SET data = EXCLUDED.data, synced_at = NOW()`,
+        [deviceId || null, JSON.stringify(r)]
+      );
+      count++;
+    }
+    return count;
+  },
+
+  // ── sentinelone_rss ───────────────────────────────────────────────────────
+  async upsertRssData(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
+    await this.ensureTables(orgSlug);
+    let count = 0;
+    for (const r of records) {
+      const rssId = (r.id ?? r.rssId ?? r.guid ?? "") as string;
+      await orgQuery(orgSlug,
+        `INSERT INTO s1_rss (rss_id, data, synced_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (rss_id) DO UPDATE SET data = EXCLUDED.data, synced_at = NOW()`,
+        [rssId || null, JSON.stringify(r)]
+      );
+      count++;
+    }
+    return count;
+  },
+
+  // ── sentinelone_threatcount ───────────────────────────────────────────────
+  async upsertThreatCount(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
+    await this.ensureTables(orgSlug);
+    let count = 0;
+    for (const r of records) {
+      const countId = (r.id ?? r.countId ?? String(Date.now())) as string;
+      await orgQuery(orgSlug,
+        `INSERT INTO s1_threat_count (count_id, data, synced_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (count_id) DO UPDATE SET data = EXCLUDED.data, synced_at = NOW()`,
+        [countId || null, JSON.stringify(r)]
+      );
+      count++;
+    }
+    return count;
+  },
+
+  async upsertRiskApplications(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
+    return this.upsertApplicationCVE(orgSlug, records);
+  },
+
+  async upsertRisks(orgSlug: string, records: Record<string, unknown>[]): Promise<number> {
+    return this.upsertApplicationAgent(orgSlug, records);
+  },
 };
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
 
 export const AnalyticsModel = {
   async pageStats(orgSlug: string): Promise<{ _id: string; count: number }[]> {

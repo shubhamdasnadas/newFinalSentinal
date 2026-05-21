@@ -7,6 +7,7 @@ import { useAuth } from "../../../../context/AuthContext";
 
 const PAGE_META: Record<string, { label: string; desc: string; icon: string }> = {
   dashboard:     { label: "Dashboard",      desc: "Main overview with stats and recent activity", icon: "🏠" },
+  security:      { label: "Security",      desc: "Main overview with stats and recent activity", icon: "🏠" },
   members:       { label: "Members",        desc: "View and manage organization members",          icon: "👥" },
   projects:      { label: "Projects",       desc: "Create and track projects",                     icon: "📁" },
   reports:       { label: "Reports",        desc: "View and create reports",                       icon: "📊" },
@@ -15,6 +16,7 @@ const PAGE_META: Record<string, { label: string; desc: string; icon: string }> =
   notifications: { label: "Notifications",  desc: "System and user notifications",                 icon: "🔔" },
   support:       { label: "Support",        desc: "Support tickets and help desk",                 icon: "🎧" },
   settings:      { label: "Settings",       desc: "Account and organization settings",             icon: "⚙️" },
+  checkpoint:      { label: "Check Point",       desc: "Account and organization settings",             icon: "⚙️" },
 };
 
 export default function OrgAccessPage() {

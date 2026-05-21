@@ -6,7 +6,7 @@ import { query } from "../lib/db";
 
 export const ALL_PAGES = [
   "dashboard", "members", "projects", "reports",
-  "analytics", "billing", "notifications", "support", "security", "settings",
+  "analytics", "billing", "notifications", "support", "security", "settings","checkpoint"
 ];
 
 export interface Organization {

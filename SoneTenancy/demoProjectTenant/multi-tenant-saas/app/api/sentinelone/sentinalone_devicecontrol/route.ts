@@ -1,9 +1,11 @@
 /**
- * GET /api/sentinelone/threats
+ * GET /api/sentinelone/agents
  * Fetches ALL agents with pagination + 429 handling.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "../../../lib/auth";
+// ✅ ADDED: import model for DB storage
+import { SentinelOneModel } from "../../../models/OrgModels";
 
 function getOrgSlug(user: any): string | null {
   return user.activeOrgSlug || user.orgSlug || null;
@@ -23,7 +25,16 @@ export async function GET(req: NextRequest) {
     if (!orgSlug) return NextResponse.json({ message: "No active organization" }, { status: 400 });
 
     const baseUrl = process.env.S1_BASE_URL;
-    const apiToken = process.env.S1_API_TOKEN;
+
+    // ✅ CHANGED: Read accountId from query param, apiToken from header (user-supplied)
+    const { searchParams } = new URL(req.url);
+    const accountId =
+      searchParams.get("accountId") ||
+      process.env.S1_ACCOUNT_ID ||
+      "2099936112556801909";
+
+    const apiToken =
+      req.headers.get("x-s1-token") || process.env.S1_API_TOKEN;
 
     if (!baseUrl || !apiToken) {
       return NextResponse.json(
@@ -33,7 +44,6 @@ export async function GET(req: NextRequest) {
     }
 
     const cleanBase = baseUrl.replace(/\/$/, "");
-    const accountId = "2099936112556801909";
 
     let allData: any[] = [];
     let nextCursor: string | null = null;
@@ -112,6 +122,11 @@ export async function GET(req: NextRequest) {
 
       await sleep(1000);
     } while (nextCursor);
+
+    // ✅ ADDED: Store fetched agents into DB
+    if (allData.length > 0) {
+      await SentinelOneModel.upsertAgents(orgSlug, allData);
+    }
 
     return NextResponse.json({
       data: allData,
