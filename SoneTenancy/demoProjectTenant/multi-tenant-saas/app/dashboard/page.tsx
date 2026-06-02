@@ -40,14 +40,18 @@ const COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#06b6d4"
 interface BoxLayout { i: string; x: number; y: number; w: number; h: number; }
 
 const DEFAULT_BOXES: BoxLayout[] = [
-  { i: "s1-mitigation", x: 0, y: 0, w: 3, h: 33 },
-  { i: "s1-severity", x: 3, y: 0, w: 3, h: 33 },
-  { i: "s1-threats", x: 6, y: 0, w: 3, h: 33 },
-  { i: "s1-agents", x: 9, y: 0, w: 3, h: 33 },
-
-
+  // SentinelOne core widgets (always visible by default)
+  { i: "s1-mitigation",    x: 0, y: 0,  w: 3, h: 33 },
+  { i: "s1-severity",      x: 3, y: 0,  w: 3, h: 33 },
+  { i: "s1-threats",       x: 6, y: 0,  w: 3, h: 33 },
+  { i: "s1-agents",        x: 9, y: 0,  w: 3, h: 33 },
+  // SentinelOne extra widgets (added via picker)
+  { i: "s1-app-agent",      x: 0, y: 33, w: 3, h: 33 },
+  { i: "s1-app-cve",        x: 3, y: 33, w: 3, h: 33 },
+  { i: "s1-device-control", x: 6, y: 33, w: 3, h: 33 },
+  { i: "s1-rss",            x: 9, y: 33, w: 3, h: 33 },
+  // Firewall widget
   { i: "fw-explorer", x: 0, y: 0, w: 7, h: 44 },
-  // { i: "fw-trend",      x: 7,  y: 33,  w: 5, h: 44 },
 ];
 
 // ─── Helper UI ────────────────────────────────────────────────────────────────
@@ -86,6 +90,15 @@ export default function DashboardPage() {
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState("");
   const [mitigationChart, setMitigationChart] = useState<"donut" | "probability" | "bar">("donut");
+  // ── Extra S1 tables ────────────────────────────────────────────────────────
+  const [appAgentData, setAppAgentData] = useState<any[]>([]);
+  const [appAgentLoading, setAppAgentLoading] = useState(false);
+  const [appCveData, setAppCveData] = useState<any[]>([]);
+  const [appCveLoading, setAppCveLoading] = useState(false);
+  const [deviceControlData, setDeviceControlData] = useState<any[]>([]);
+  const [deviceControlLoading, setDeviceControlLoading] = useState(false);
+  const [rssData, setRssData] = useState<any[]>([]);
+  const [rssLoading, setRssLoading] = useState(false);
 
   // ── Firewall ─────────────────────────────────────────────────────────────────
   const [fwReport, setFwReport] = useState("bandwidth-trend");
@@ -148,6 +161,9 @@ export default function DashboardPage() {
   ]);
   // Checkpoint: start empty — user adds via picker
   const [visibleCpWidgets, setVisibleCpWidgets] = useState<string[]>([]);
+
+  // ── Selected widget in the S1 dropdown view ────────────────────────────────
+  const [selectedS1Widget, setSelectedS1Widget] = useState<string>("s1-mitigation");
 
   const dragSectionRef = useRef<SectionKey | null>(null);
   // Always holds the latest sectionOrder so persistLayout can read it without stale closure
@@ -308,6 +324,47 @@ export default function DashboardPage() {
       })
       .catch(e => setAgentError(e.message || "Fetch failed"))
       .finally(() => setAgentLoading(false));
+  }, [activeOrgSlug]);
+
+  // Load extra S1 DB tables (app-agent, app-cve, device-control, rss)
+  useEffect(() => {
+    if (!activeOrgSlug) return;
+    setAppAgentLoading(true);
+    fetch("/api/sentinelone/db/application-agent", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.data)) setAppAgentData(d.data); })
+      .catch(() => {})
+      .finally(() => setAppAgentLoading(false));
+  }, [activeOrgSlug]);
+
+  useEffect(() => {
+    if (!activeOrgSlug) return;
+    setAppCveLoading(true);
+    fetch("/api/sentinelone/db/application-cve", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.data)) setAppCveData(d.data); })
+      .catch(() => {})
+      .finally(() => setAppCveLoading(false));
+  }, [activeOrgSlug]);
+
+  useEffect(() => {
+    if (!activeOrgSlug) return;
+    setDeviceControlLoading(true);
+    fetch("/api/sentinelone/db/device-control", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.data)) setDeviceControlData(d.data); })
+      .catch(() => {})
+      .finally(() => setDeviceControlLoading(false));
+  }, [activeOrgSlug]);
+
+  useEffect(() => {
+    if (!activeOrgSlug) return;
+    setRssLoading(true);
+    fetch("/api/sentinelone/db/rss", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.data)) setRssData(d.data); })
+      .catch(() => {})
+      .finally(() => setRssLoading(false));
   }, [activeOrgSlug]);
 
   // Load firewall report
@@ -483,6 +540,23 @@ export default function DashboardPage() {
           .then(async r => { const j = await r.json(); setAgentData(Array.isArray(j.data) ? j.data : []); })
           .catch(() => { })
           .finally(() => setAgentLoading(false));
+        // Reload extra tables
+        setAppAgentLoading(true);
+        fetch("/api/sentinelone/db/application-agent", { credentials: "include" })
+          .then(r => r.json()).then(d => { if (Array.isArray(d.data)) setAppAgentData(d.data); })
+          .catch(() => {}).finally(() => setAppAgentLoading(false));
+        setAppCveLoading(true);
+        fetch("/api/sentinelone/db/application-cve", { credentials: "include" })
+          .then(r => r.json()).then(d => { if (Array.isArray(d.data)) setAppCveData(d.data); })
+          .catch(() => {}).finally(() => setAppCveLoading(false));
+        setDeviceControlLoading(true);
+        fetch("/api/sentinelone/db/device-control", { credentials: "include" })
+          .then(r => r.json()).then(d => { if (Array.isArray(d.data)) setDeviceControlData(d.data); })
+          .catch(() => {}).finally(() => setDeviceControlLoading(false));
+        setRssLoading(true);
+        fetch("/api/sentinelone/db/rss", { credentials: "include" })
+          .then(r => r.json()).then(d => { if (Array.isArray(d.data)) setRssData(d.data); })
+          .catch(() => {}).finally(() => setRssLoading(false));
       }
     } catch { setS1SyncMsg({ text: "Sync failed", ok: false }); }
     finally { setS1Syncing(false); }
@@ -1025,7 +1099,7 @@ export default function DashboardPage() {
                   rowHeight={10}
                   width={containerWidth}
                   onLayoutChange={handleLayoutChange}
-                  compactType={null}
+                  compactor={noCompactor}
                   preventCollision={true}
                   allowOverlap={false}
                   isBounded={true}
@@ -1181,6 +1255,167 @@ export default function DashboardPage() {
                     </div>
                   )}
 
+                  {/* ── Application Agents — only render if visible ── */}
+                  {visibleS1Widgets.includes("s1-app-agent") && (
+                    <div key="s1-app-agent" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application Agents</p></div>
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{appAgentData.length} records</span>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-auto">
+                        {appAgentLoading ? <Spin /> : appAgentData.length === 0 ? <Empty msg="No application agent data — sync first" /> : (
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 z-10 bg-[var(--muted-bg)]">
+                              <tr>
+                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Name</th>
+                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Risk Level</th>
+                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Agent</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {appAgentData.slice(0, 50).map((item: any, i: number) => {
+                                const name = item.name || item.applicationName || item.app_name || "Unknown";
+                                const risk = item.riskLevel || item.risk_level || item.riskScore || "—";
+                                const agent = item.computerName || item.agentComputerName || item.endpointName || "—";
+                                const riskCls = String(risk).toLowerCase() === "critical" ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                  : String(risk).toLowerCase() === "high" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                                  : String(risk).toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
+                                  : "bg-[var(--muted-bg)] text-[var(--muted)]";
+                                return (
+                                  <tr key={i} className={i % 2 === 0 ? "bg-[var(--card-bg)]" : "bg-[var(--muted-bg)]"}>
+                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--foreground)] truncate max-w-[120px]">{name}</td>
+                                    <td className="px-3 py-2 border-b border-[var(--card-border)]">
+                                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${riskCls}`}>{risk}</span>
+                                    </td>
+                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--muted)] truncate max-w-[100px]">{agent}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Application CVEs — only render if visible ── */}
+                  {visibleS1Widgets.includes("s1-app-cve") && (
+                    <div key="s1-app-cve" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application CVEs</p></div>
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{appCveData.length} CVEs</span>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-auto">
+                        {appCveLoading ? <Spin /> : appCveData.length === 0 ? <Empty msg="No CVE data — sync first" /> : (
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 z-10 bg-[var(--muted-bg)]">
+                              <tr>
+                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">CVE ID</th>
+                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Severity</th>
+                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">App</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {appCveData.slice(0, 50).map((item: any, i: number) => {
+                                const cveId = item.cveId || item.cve_id || item.id || "—";
+                                const severity = item.severity || item.cvssScore || "—";
+                                const appName = item.applicationName || item.name || item.app_name || "—";
+                                const sevCls = String(severity).toLowerCase() === "critical" ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                  : String(severity).toLowerCase() === "high" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                                  : String(severity).toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
+                                  : "bg-[var(--muted-bg)] text-[var(--muted)]";
+                                return (
+                                  <tr key={i} className={i % 2 === 0 ? "bg-[var(--card-bg)]" : "bg-[var(--muted-bg)]"}>
+                                    <td className="px-3 py-2 border-b border-[var(--card-border)] font-mono text-blue-600 dark:text-blue-400">{cveId}</td>
+                                    <td className="px-3 py-2 border-b border-[var(--card-border)]">
+                                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${sevCls}`}>{severity}</span>
+                                    </td>
+                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--muted)] truncate max-w-[100px]">{appName}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Device Control — only render if visible ── */}
+                  {visibleS1Widgets.includes("s1-device-control") && (
+                    <div key="s1-device-control" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Device Control</p></div>
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{deviceControlData.length} events</span>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-auto">
+                        {deviceControlLoading ? <Spin /> : deviceControlData.length === 0 ? <Empty msg="No device control events — sync first" /> : (
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 z-10 bg-[var(--muted-bg)]">
+                              <tr>
+                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Device</th>
+                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Status</th>
+                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Agent</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {deviceControlData.slice(0, 50).map((item: any, i: number) => {
+                                const device = item.deviceName || item.device_name || item.productName || item.name || "Unknown";
+                                const status = item.accessPermission || item.status || item.ruleType || "—";
+                                const agent = item.computerName || item.agentComputerName || "—";
+                                const statusCls = String(status).toLowerCase().includes("block") ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                  : String(status).toLowerCase().includes("allow") ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                                  : "bg-[var(--muted-bg)] text-[var(--muted)]";
+                                return (
+                                  <tr key={i} className={i % 2 === 0 ? "bg-[var(--card-bg)]" : "bg-[var(--muted-bg)]"}>
+                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--foreground)] truncate max-w-[100px]">{device}</td>
+                                    <td className="px-3 py-2 border-b border-[var(--card-border)]">
+                                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusCls}`}>{status}</span>
+                                    </td>
+                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--muted)] truncate max-w-[100px]">{agent}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── RSS Feed — only render if visible ── */}
+                  {visibleS1Widgets.includes("s1-rss") && (
+                    <div key="s1-rss" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">RSS Feed</p></div>
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{rssData.length} items</span>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-auto">
+                        {rssLoading ? <Spin /> : rssData.length === 0 ? <Empty msg="No RSS data — sync first" /> : (
+                          <div className="divide-y divide-[var(--card-border)]">
+                            {rssData.slice(0, 20).map((item: any, i: number) => {
+                              const title = item.title || item.name || "Untitled";
+                              const desc = item.description || item.summary || item.content || "";
+                              const link = item.link || item.url || item.guid || null;
+                              const date = item.pubDate || item.published || item.date || "";
+                              return (
+                                <div key={i} className="px-3 py-2.5 hover:bg-[var(--muted-bg)] transition-colors">
+                                  {link ? (
+                                    <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline line-clamp-2 block">{title}</a>
+                                  ) : (
+                                    <p className="text-xs font-semibold text-[var(--foreground)] line-clamp-2">{title}</p>
+                                  )}
+                                  {desc && <p className="text-[10px] text-[var(--muted)] mt-0.5 line-clamp-2">{String(desc).replace(/<[^>]+>/g, "")}</p>}
+                                  {date && <p className="text-[10px] text-[var(--muted)] mt-1">{new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                 </ResponsiveGridLayout>
               </div>
             </div>
@@ -1283,7 +1518,7 @@ export default function DashboardPage() {
                 rowHeight={10}
                 width={containerWidth}
                 onLayoutChange={handleLayoutChange}
-                compactType={null}
+                compactor={noCompactor}
                 preventCollision={true}
                 allowOverlap={false}
                 isBounded={true}
