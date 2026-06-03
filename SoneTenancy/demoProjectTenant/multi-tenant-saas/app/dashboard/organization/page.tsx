@@ -17,6 +17,22 @@ interface OrgDetails {
   createdAt: string;
 }
 
+const PLAN_COLORS: Record<string, { bg: string; text: string }> = {
+  free:       { bg: "bg-gray-100 dark:bg-gray-800",         text: "text-gray-700 dark:text-gray-300" },
+  starter:    { bg: "bg-sky-100 dark:bg-sky-900/30",        text: "text-sky-700 dark:text-sky-400" },
+  pro:        { bg: "bg-indigo-100 dark:bg-indigo-900/40",  text: "text-indigo-700 dark:text-indigo-300" },
+  enterprise: { bg: "bg-violet-100 dark:bg-violet-900/40",  text: "text-violet-700 dark:text-violet-300" },
+};
+
+function InfoCard({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="bg-[var(--muted-bg)] rounded-xl px-5 py-4">
+      <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">{label}</p>
+      <p className={`text-sm font-medium text-[var(--foreground)] break-all ${mono ? "font-mono" : ""}`}>{value || "—"}</p>
+    </div>
+  );
+}
+
 export default function OrganizationPage() {
   const { user, isSuperAdmin, activeOrgSlug, activeOrgName } = useAuth();
   const [org, setOrg] = useState<OrgDetails | null>(null);
@@ -29,16 +45,11 @@ export default function OrganizationPage() {
 
   useEffect(() => {
     if (!activeOrgSlug) { setLoading(false); return; }
-
-    // Fetch org details from admin API
     fetch("/api/admin/organizations")
       .then((r) => r.json())
       .then((d) => {
         const found = (d.orgs || []).find((o: OrgDetails) => o.slug === activeOrgSlug);
-        if (found) {
-          setOrg(found);
-          setForm(found);
-        }
+        if (found) { setOrg(found); setForm(found); }
       })
       .finally(() => setLoading(false));
   }, [activeOrgSlug]);
@@ -61,149 +72,140 @@ export default function OrganizationPage() {
   if (!activeOrgSlug) {
     return (
       <div className="p-8">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-          <h3 className="font-semibold text-amber-800">No Organization Selected</h3>
-          <p className="text-amber-700 mt-1">Select an organization to view its details.</p>
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-6">
+          <h3 className="font-semibold text-amber-800 dark:text-amber-300">No Organization Selected</h3>
+          <p className="text-amber-700 dark:text-amber-400 mt-1 text-sm">Select an organization to view its details.</p>
         </div>
       </div>
     );
   }
 
+  const planCfg = PLAN_COLORS[org?.plan ?? "free"] ?? PLAN_COLORS.free;
+
   return (
-    <div className="p-8 max-w-3xl">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-6 lg:p-8 max-w-3xl">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Organization</h1>
-          <p className="text-gray-500 mt-1">{activeOrgName}</p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
+              <svg className="w-4 h-4 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-[var(--foreground)]">Organization</h1>
+          </div>
+          <p className="text-[var(--muted)] text-sm">{activeOrgName}</p>
         </div>
-        {canEdit && !editing && (
+        {canEdit && !editing && org && (
           <button
             onClick={() => setEditing(true)}
-            className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+            className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
           >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
             Edit Details
           </button>
         )}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-32">
+        <div className="flex items-center justify-center h-40">
           <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" />
         </div>
       ) : !org ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <p className="text-gray-500">Organization details not found.</p>
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-16 text-center">
+          <div className="w-14 h-14 bg-[var(--muted-bg)] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg className="w-7 h-7 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+            </svg>
+          </div>
+          <p className="text-[var(--muted)] text-sm">Organization details not found.</p>
         </div>
       ) : editing ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-8">
-          <form onSubmit={handleSave} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-6 py-4 border-b border-[var(--card-border)] bg-[var(--muted-bg)]">
+            <h3 className="font-semibold text-[var(--foreground)]">Edit Organization Details</h3>
+          </div>
+          <form onSubmit={handleSave} className="p-6 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Organization Name</label>
-                <input
-                  value={form.name || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-1.5">Organization Name</label>
+                <input value={form.name || ""} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={form.email || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-1.5">Email</label>
+                <input type="email" value={form.email || ""} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input
-                  value={form.phone || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-1.5">Phone</label>
+                <input value={form.phone || ""} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
-                <input
-                  value={form.website || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, website: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-1.5">Website</label>
+                <input value={form.website || ""} onChange={(e) => setForm((p) => ({ ...p, website: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
-                <input
-                  value={form.industry || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-1.5">Industry</label>
+                <input value={form.industry || ""} onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <textarea
-                  value={form.address || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
-                  rows={2}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                />
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-1.5">Address</label>
+                <textarea value={form.address || ""} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} rows={2}
+                  className="w-full px-4 py-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
             </div>
-            <div className="flex gap-4">
-              <button type="submit" disabled={saving} className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-              <button type="button" onClick={() => setEditing(false)} className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
-                Cancel
-              </button>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setEditing(false)} className="flex-1 px-4 py-2.5 border border-[var(--card-border)] rounded-xl text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted-bg)] transition-colors">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">{saving ? "Saving..." : "Save Changes"}</button>
             </div>
           </form>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center text-3xl">
-                🏢
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">{org.name}</h2>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 capitalize">
-                    {org.plan}
-                  </span>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    org.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                  }`}>
-                    {org.isActive ? "Active" : "Inactive"}
-                  </span>
+        <div className="space-y-5">
+          {/* Identity card */}
+          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-6 py-5 border-b border-[var(--card-border)]">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-sm flex-shrink-0">
+                  {org.name?.[0]?.toUpperCase() ?? "O"}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-[var(--foreground)]">{org.name}</h2>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${planCfg.bg} ${planCfg.text}`}>
+                      {org.plan}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                      org.isActive
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${org.isActive ? "bg-green-500" : "bg-red-500"}`} />
+                      {org.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <InfoRow label="Database" value={`saas_org_${org.slug}`} mono />
-            <InfoRow label="Created" value={new Date(org.createdAt).toLocaleDateString()} />
-            <InfoRow label="Email" value={org.email || "—"} />
-            <InfoRow label="Phone" value={org.phone || "—"} />
-            <InfoRow label="Website" value={org.website || "—"} />
-            <InfoRow label="Industry" value={org.industry || "—"} />
-            <InfoRow label="Address" value={org.address || "—"} />
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <InfoCard label="Database" value={`saas_org_${org.slug}`} mono />
+              <InfoCard label="Created" value={new Date(org.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} />
+              <InfoCard label="Email" value={org.email || "—"} />
+              <InfoCard label="Phone" value={org.phone || "—"} />
+              <InfoCard label="Website" value={org.website || "—"} />
+              <InfoCard label="Industry" value={org.industry || "—"} />
+              {org.address && <InfoCard label="Address" value={org.address} />}
+            </div>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div>
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className={`mt-1 text-gray-900 ${mono ? "font-mono text-sm bg-gray-100 px-2 py-1 rounded inline-block" : "font-medium"}`}>
-        {value}
-      </p>
     </div>
   );
 }

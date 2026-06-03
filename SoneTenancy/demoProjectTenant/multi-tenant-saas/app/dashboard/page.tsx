@@ -1,12 +1,14 @@
-﻿"use client";
+"use client";
 
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import PCPLDashboard from "../components/PCPLDashboard";
 import CheckpointCards from "../components/CheckpointCards";
-import CheckpointWidgetPicker from "../components/widgets/checkpoint/CheckpointWidgetPicker";
+import CheckpointWidgetPicker, { WIDGET_OPTIONS } from "../components/widgets/checkpoint/CheckpointWidgetPicker";
 import SentinelOneWidgetPicker from "../components/widgets/sentinelone/SentinelOneWidgetPicker";
+import type { S1WidgetConfig } from "../components/widgets/sentinelone/SentinelOneWidgetPicker";
+import { getPath, collectKeys, buildChartData, labelFor, looksLikeDate, toYMD } from "../components/widgets/sentinelone/SentinelOneWidgetPicker";
 import FirewallWidgetPicker from "../components/widgets/firewall/FirewallWidgetPicker";
 import type { FirewallWidgetDraft } from "../components/widgets/firewall/FirewallWidgetPicker";
 import { ResponsiveGridLayout, noCompactor } from "react-grid-layout";
@@ -18,7 +20,7 @@ import {
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 type SectionKey = "checkpoint" | "sentinelone" | "firewall";
-// ─── Constants ────────────────────────────────────────────────────────────────
+// --- Constants ----------------------------------------------------------------
 const FIREWALL_REPORTS = [
   "bandwidth-trend", "blocked-credential-post", "hruser-top-applications",
   "hruser-top-threats", "hruser-top-url-categories", "risk-trend", "risky-users",
@@ -36,7 +38,9 @@ const FIREWALL_REPORTS = [
 
 const COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#6366f1"];
 
-// ─── Layout types ─────────────────────────────────────────────────────────────
+const S1_EXTRA_IDS = new Set(["s1-app-agent", "s1-app-cve", "s1-device-control", "s1-rss"]);
+
+// --- Layout types -------------------------------------------------------------
 interface BoxLayout { i: string; x: number; y: number; w: number; h: number; }
 
 const DEFAULT_BOXES: BoxLayout[] = [
@@ -54,7 +58,7 @@ const DEFAULT_BOXES: BoxLayout[] = [
   { i: "fw-explorer", x: 0, y: 0, w: 7, h: 44 },
 ];
 
-// ─── Helper UI ────────────────────────────────────────────────────────────────
+// --- Helper UI ----------------------------------------------------------------
 function Spin() {
   return <div className="flex items-center justify-center h-full min-h-[100px]"><div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>;
 }
@@ -65,7 +69,7 @@ function Empty({ msg }: { msg: string }) {
   return <div className="flex items-center justify-center h-full min-h-[80px]"><p className="text-sm text-[var(--muted)]">{msg}</p></div>;
 }
 
-// ─── Widget card wrapper ──────────────────────────────────────────────────────
+// --- Widget card wrapper ------------------------------------------------------
 function WidgetCard({ label, title, children, right }: { label?: string; title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden h-full">
@@ -78,11 +82,117 @@ function WidgetCard({ label, title, children, right }: { label?: string; title: 
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// --- S1 Configurable Widget � renders exactly what was set in the picker -------
+function S1ConfigWidget({
+  data, loading, config, onConfigChange,
+  accentColor = "#10b981",
+}: {
+  data: unknown[];
+  loading: boolean;
+  config: S1WidgetConfig;
+  onConfigChange: (patch: Partial<S1WidgetConfig>) => void;
+  accentColor?: string;
+}) {
+  const tooltipStyle = { background: "var(--card-bg)", border: "1px solid var(--card-border)", borderRadius: 8 };
+  const COLORS_LOCAL = ["#3b82f6","#f59e0b","#10b981","#ef4444","#8b5cf6","#06b6d4","#ec4899","#6366f1"];
+
+  if (loading) return <div className="flex items-center justify-center h-full"><div className="animate-spin w-6 h-6 border-4 border-emerald-500 border-t-transparent rounded-full" /></div>;
+  if (data.length === 0) return <div className="flex items-center justify-center h-full"><p className="text-sm text-[var(--muted)]">No data � sync first</p></div>;
+
+  // -- Graph mode --
+  if (config.viewMode === "graph") {
+    const xKey = config.xKey ?? "";
+    const dateFrom = config.dateFrom ?? "";
+    const dateTo = config.dateTo ?? "";
+    if (!xKey) return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
+        <p className="text-xs text-[var(--muted)] text-center">No date field configured.<br />Reopen Add Widget and select an X-axis field.</p>
+      </div>
+    );
+    const chartData = buildChartData(data, xKey, dateFrom, dateTo);
+    if (chartData.length === 0) return <div className="flex items-center justify-center h-full"><p className="text-sm text-[var(--muted)]">No records in date range</p></div>;
+    return (
+      <div className="p-3 h-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--card-border)" />
+            <XAxis dataKey="x" tick={{ fontSize: 10, fill: "var(--muted)" }} angle={-20} textAnchor="end" tickFormatter={v => String(v).slice(0, 12)} />
+            <YAxis tick={{ fontSize: 10, fill: "var(--muted)" }} allowDecimals={false} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v) => [v, "Count"]} />
+            <Bar dataKey="y" fill={accentColor} radius={[4, 4, 0, 0]} maxBarSize={40} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
+  // -- Table mode --
+  const allKeys = collectKeys(data);
+  const activeDateKey = config.dateKey ?? allKeys[0] ?? "";
+  const visibleCols = config.visibleCols ?? allKeys.filter(k => k !== activeDateKey).slice(0, 4);
+  const dateFrom = config.dateFrom ?? "";
+  const dateTo = config.dateTo ?? "";
+
+  const filtered = data.filter(r => {
+    if (!activeDateKey) return true;
+    const day = toYMD(getPath(r, activeDateKey));
+    return (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo);
+  }).slice(0, 100);
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Controls bar */}
+      <div className="px-3 py-1.5 bg-[var(--muted-bg)] border-b border-[var(--card-border)] flex items-center gap-2 flex-wrap flex-shrink-0">
+        <div className="flex items-center gap-1">
+          <label className="text-[10px] text-[var(--muted)]">From</label>
+          <input type="date" value={dateFrom} max={dateTo} onChange={e => onConfigChange({ dateFrom: e.target.value })}
+            className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+        </div>
+        <div className="flex items-center gap-1">
+          <label className="text-[10px] text-[var(--muted)]">To</label>
+          <input type="date" value={dateTo} min={dateFrom} onChange={e => onConfigChange({ dateTo: e.target.value })}
+            className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+        </div>
+        <span className="text-[10px] text-[var(--muted)] ml-auto">{filtered.length} rows</span>
+      </div>
+      {/* Scrollable table */}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {filtered.length === 0
+          ? <div className="flex items-center justify-center h-full"><p className="text-xs text-[var(--muted)]">No records in date range</p></div>
+          : <table className="w-full text-[10px] border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th className="sticky left-0 top-0 z-20 px-2 py-1.5 text-left font-bold text-[var(--muted)] uppercase tracking-wide whitespace-nowrap bg-[var(--muted-bg)] border-b border-r border-[var(--card-border)]">{labelFor(activeDateKey)}</th>
+                {visibleCols.map(col => <th key={col} className="sticky top-0 z-10 px-2 py-1.5 text-left font-bold text-[var(--muted)] uppercase tracking-wide whitespace-nowrap bg-[var(--muted-bg)] border-b border-[var(--card-border)]">{labelFor(col)}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row, i) => {
+                const rawDate = String(getPath(row, activeDateKey) ?? "�");
+                const displayDate = toYMD(rawDate) || rawDate.slice(0, 20);
+                return (
+                  <tr key={i} className="hover:bg-[var(--muted-bg)]/50">
+                    <td className="sticky left-0 z-10 px-2 py-1 font-medium text-[var(--foreground)] whitespace-nowrap bg-[var(--card-bg)] border-b border-r border-[var(--card-border)]">{displayDate}</td>
+                    {visibleCols.map(col => {
+                      const val = getPath(row, col);
+                      const display = val == null ? "�" : typeof val === "object" ? JSON.stringify(val).slice(0, 60) : String(val).slice(0, 60);
+                      return <td key={col} className="px-2 py-1 text-[var(--foreground)] whitespace-nowrap border-b border-[var(--card-border)]">{display}</td>;
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>}
+      </div>
+    </div>
+  );
+}
+
+// --- Main Page ----------------------------------------------------------------
 export default function DashboardPage() {
   const { activeOrgSlug } = useAuth();
 
-  // ── SentinelOne ─────────────────────────────────────────────────────────────
+  // -- SentinelOne -------------------------------------------------------------
   const [s1Data, setS1Data] = useState<any[]>([]);
   const [s1Loading, setS1Loading] = useState(false);
   const [s1Error, setS1Error] = useState("");
@@ -90,7 +200,7 @@ export default function DashboardPage() {
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState("");
   const [mitigationChart, setMitigationChart] = useState<"donut" | "probability" | "bar">("donut");
-  // ── Extra S1 tables ────────────────────────────────────────────────────────
+  // -- Extra S1 tables --------------------------------------------------------
   const [appAgentData, setAppAgentData] = useState<any[]>([]);
   const [appAgentLoading, setAppAgentLoading] = useState(false);
   const [appCveData, setAppCveData] = useState<any[]>([]);
@@ -100,7 +210,11 @@ export default function DashboardPage() {
   const [rssData, setRssData] = useState<any[]>([]);
   const [rssLoading, setRssLoading] = useState(false);
 
-  // ── Firewall ─────────────────────────────────────────────────────────────────
+  // -- Checkpoint Harmony events ----------------------------------------------
+  const [cpEvents, setCpEvents] = useState<any[]>([]);
+  const [cpEventsLoading, setCpEventsLoading] = useState(false);
+
+  // -- Firewall -----------------------------------------------------------------
   const [fwReport, setFwReport] = useState("bandwidth-trend");
   const [fwRaw, setFwRaw] = useState<any>(null);
   const [fwUpdated, setFwUpdated] = useState<string | null>(null);
@@ -109,28 +223,28 @@ export default function DashboardPage() {
   const [collecting, setCollecting] = useState(false);
   const [collectMsg, setCollectMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
-  // ── Firewall axis selectors ──────────────────────────────────────────────────
+  // -- Firewall axis selectors --------------------------------------------------
   const [fwXAxis, setFwXAxis] = useState<string[]>([]);
   const [fwYAxis, setFwYAxis] = useState<string[]>([]);
   const [fwChartType, setFwChartType] = useState<"bar" | "line" | "mixed">("bar");
   const [showFwX, setShowFwX] = useState(false);
   const [showFwY, setShowFwY] = useState(false);
 
-  // ── Saved firewall widgets ───────────────────────────────────────────────────
+  // -- Saved firewall widgets ---------------------------------------------------
   const [fwWidgets, setFwWidgets] = useState<any[]>([]);
 
-  // ── SentinelOne sync ─────────────────────────────────────────────────────────
+  // -- SentinelOne sync ---------------------------------------------------------
   const [s1Syncing, setS1Syncing] = useState(false);
   const [s1SyncMsg, setS1SyncMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
-  // ── Grid layout ──────────────────────────────────────────────────────────────
+  // -- Grid layout --------------------------------------------------------------
   const [boxes, setBoxes] = useState<BoxLayout[]>(DEFAULT_BOXES);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Edit mode & Add Widget modal ─────────────────────────────────────────────
+  // -- Edit mode & Add Widget modal ---------------------------------------------
   const [isEditMode, setIsEditMode] = useState(false);
   const [showAddWidget, setShowAddWidget] = useState(false);
   // Modal source tab: which product the user is adding a widget for
@@ -154,20 +268,34 @@ export default function DashboardPage() {
     "firewall",
   ]);
 
-  // ── Visible widget sets (driven by picker selections) ─────────────────────────
+  // -- Visible widget sets (driven by picker selections) -------------------------
   // Start with all S1 widgets visible (matches DEFAULT_BOXES)
   const [visibleS1Widgets, setVisibleS1Widgets] = useState<string[]>([
     "s1-mitigation", "s1-severity", "s1-threats", "s1-agents",
   ]);
-  // Checkpoint: start empty — user adds via picker
+  // Full per-widget config (viewMode + axis/column settings) captured from picker
+  const [s1WidgetConfigs, setS1WidgetConfigs] = useState<Record<string, S1WidgetConfig>>({
+    "s1-mitigation":    { id: "s1-mitigation",    viewMode: "stat" },
+    "s1-severity":      { id: "s1-severity",      viewMode: "stat" },
+    "s1-threats":       { id: "s1-threats",       viewMode: "table" },
+    "s1-agents":        { id: "s1-agents",        viewMode: "table" },
+  });
+  // Checkpoint: start empty � user adds via picker
   const [visibleCpWidgets, setVisibleCpWidgets] = useState<string[]>([]);
-
-  // ── Selected widget in the S1 dropdown view ────────────────────────────────
   const [selectedS1Widget, setSelectedS1Widget] = useState<string>("s1-mitigation");
 
   const dragSectionRef = useRef<SectionKey | null>(null);
   // Always holds the latest sectionOrder so persistLayout can read it without stale closure
   const sectionOrderRef = useRef<SectionKey[]>(["checkpoint", "sentinelone", "firewall"]);
+  // Refs for widget visibility & configs so persistLayout always reads latest values
+  const visibleS1WidgetsRef = useRef<string[]>(["s1-mitigation", "s1-severity", "s1-threats", "s1-agents"]);
+  const s1WidgetConfigsRef = useRef<Record<string, S1WidgetConfig>>({
+    "s1-mitigation": { id: "s1-mitigation", viewMode: "stat" },
+    "s1-severity":   { id: "s1-severity",   viewMode: "stat" },
+    "s1-threats":    { id: "s1-threats",    viewMode: "table" },
+    "s1-agents":     { id: "s1-agents",     viewMode: "table" },
+  });
+  const visibleCpWidgetsRef = useRef<string[]>([]);
 
   const moveSection = (target: SectionKey) => {
     const dragged = dragSectionRef.current;
@@ -208,13 +336,13 @@ export default function DashboardPage() {
       onDragEnd={() => {
         dragSectionRef.current = null;
       }}
-      className="mb-10"
+      className=""
     >
       {children}
     </div>
   );
 
-  // ── Container width ───────────────────────────────────────────────────────────
+  // -- Container width -----------------------------------------------------------
   const [containerWidth, setContainerWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth - 240 : 1200
   );
@@ -244,7 +372,12 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // ── ALL HOOKS BEFORE EARLY RETURNS ──────────────────────────────────────────
+  // -- ALL HOOKS BEFORE EARLY RETURNS ------------------------------------------
+
+  // Keep refs in sync with state so persistLayout always writes the latest values
+  useEffect(() => { visibleS1WidgetsRef.current = visibleS1Widgets; }, [visibleS1Widgets]);
+  useEffect(() => { s1WidgetConfigsRef.current = s1WidgetConfigs; }, [s1WidgetConfigs]);
+  useEffect(() => { visibleCpWidgetsRef.current = visibleCpWidgets; }, [visibleCpWidgets]);
 
   // Load persisted layout
   useEffect(() => {
@@ -265,6 +398,19 @@ export default function DashboardPage() {
           setSectionOrder(savedOrder as SectionKey[]);
           sectionOrderRef.current = savedOrder as SectionKey[];
         }
+        // Restore visible widget sets
+        if (Array.isArray(d.layout?.visibleS1Widgets) && d.layout.visibleS1Widgets.length > 0) {
+          setVisibleS1Widgets(d.layout.visibleS1Widgets);
+          visibleS1WidgetsRef.current = d.layout.visibleS1Widgets;
+        }
+        if (d.layout?.s1WidgetConfigs && typeof d.layout.s1WidgetConfigs === "object") {
+          setS1WidgetConfigs(prev => ({ ...prev, ...d.layout.s1WidgetConfigs }));
+          s1WidgetConfigsRef.current = { ...s1WidgetConfigsRef.current, ...d.layout.s1WidgetConfigs };
+        }
+        if (Array.isArray(d.layout?.visibleCpWidgets)) {
+          setVisibleCpWidgets(d.layout.visibleCpWidgets);
+          visibleCpWidgetsRef.current = d.layout.visibleCpWidgets;
+        }
       })
       .catch(() => { })
       .finally(() => setLayoutLoaded(true));
@@ -279,7 +425,7 @@ export default function DashboardPage() {
       .catch(() => setFwWidgets([]));
   }, [activeOrgSlug]);
 
-  // Load SentinelOne threats — if DB empty, auto-sync first
+  // Load SentinelOne threats � if DB empty, auto-sync first
   useEffect(() => {
     if (!activeOrgSlug) return;
     setS1Loading(true); setS1Error("");
@@ -290,7 +436,7 @@ export default function DashboardPage() {
         if (Array.isArray(j.data) && j.data.length > 0) {
           setS1Data(j.data);
         } else {
-          // DB empty — trigger sync then reload
+          // DB empty � trigger sync then reload
           fetch("/api/sentinelone/sync", { method: "POST", credentials: "include" })
             .then(() => fetch("/api/sentinelone/threats", { credentials: "include" }))
             .then(r2 => r2.json())
@@ -302,7 +448,7 @@ export default function DashboardPage() {
       .finally(() => setS1Loading(false));
   }, [activeOrgSlug]);
 
-  // Load agent info — if DB empty, auto-sync first
+  // Load agent info � if DB empty, auto-sync first
   useEffect(() => {
     if (!activeOrgSlug) return;
     setAgentLoading(true); setAgentError("");
@@ -313,7 +459,7 @@ export default function DashboardPage() {
         if (Array.isArray(j.data) && j.data.length > 0) {
           setAgentData(j.data);
         } else {
-          // DB empty — sync already triggered by threats hook, just reload after delay
+          // DB empty � sync already triggered by threats hook, just reload after delay
           setTimeout(() => {
             fetch("/api/sentinelone/sentinalone_agentinfo", { credentials: "include" })
               .then(r2 => r2.json())
@@ -367,6 +513,17 @@ export default function DashboardPage() {
       .finally(() => setRssLoading(false));
   }, [activeOrgSlug]);
 
+  // Load Checkpoint Harmony events for widget cards
+  useEffect(() => {
+    if (!activeOrgSlug) return;
+    setCpEventsLoading(true);
+    fetch("/api/harmony/events-db", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.responseData)) setCpEvents(d.responseData); })
+      .catch(() => {})
+      .finally(() => setCpEventsLoading(false));
+  }, [activeOrgSlug]);
+
   // Load firewall report
   useEffect(() => {
     if (!activeOrgSlug || !fwReport) return;
@@ -388,7 +545,7 @@ export default function DashboardPage() {
     setFwYAxis(prev => prev.length ? prev : [numCol]);
   }, [fwRaw]);
 
-  // Debounced layout save — persists both widget positions AND section order
+  // Debounced layout save � persists widget positions, section order, and visible widget sets
   const persistLayout = useCallback((nextBoxes: BoxLayout[], nextSectionOrder?: SectionKey[]) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSaving(true);
@@ -396,14 +553,22 @@ export default function DashboardPage() {
       const orderToSave = nextSectionOrder ?? sectionOrderRef.current;
       fetch("/api/dashboard/layout", {
         method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ layout: { pgboxes: nextBoxes, sectionOrder: orderToSave } }),
+        body: JSON.stringify({
+          layout: {
+            pgboxes: nextBoxes,
+            sectionOrder: orderToSave,
+            visibleS1Widgets: visibleS1WidgetsRef.current,
+            s1WidgetConfigs: s1WidgetConfigsRef.current,
+            visibleCpWidgets: visibleCpWidgetsRef.current,
+          },
+        }),
       })
         .then(() => { setSaved(true); setTimeout(() => setSaved(false), 2500); })
         .finally(() => setSaving(false));
     }, 800);
   }, []);
 
-  // ── EARLY RETURNS (after all hooks) ─────────────────────────────────────────
+  // -- EARLY RETURNS (after all hooks) -----------------------------------------
   if (!activeOrgSlug) return (
     <div className="p-8">
       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-6">
@@ -415,7 +580,7 @@ export default function DashboardPage() {
 
   if (activeOrgSlug === "pcpl") return <PCPLDashboard />;
 
-  // ── Derived data ─────────────────────────────────────────────────────────────
+  // -- Derived data -------------------------------------------------------------
   const fwTable = fwRaw ? extractTable(fwRaw) : null;
   const fwColumns = fwTable?.columns ?? [];
   const fwTrendData = fwReport === "risk-trend" && fwTable?.rows?.length ? buildRiskTrendData(fwTable.rows) : [];
@@ -440,7 +605,7 @@ export default function DashboardPage() {
 
   const tooltipStyle = { background: "var(--card-bg)", border: "1px solid var(--card-border)", borderRadius: 8 };
 
-  // ── Grid layout items — all breakpoints ──────────────────────────────────────
+  // -- Grid layout items � all breakpoints --------------------------------------
   const staticItems = boxes.map((b) => ({
     i: b.i,
     x: b.x,
@@ -462,10 +627,10 @@ export default function DashboardPage() {
     moved: false,
   }));
 
-  // ── Grid layout items — filter by visibility ──────────────────────────────────
-  const s1Items = staticItems.filter(
-    (item) => item.i.startsWith("s1-") && visibleS1Widgets.includes(item.i)
-  );
+  // -- Grid layout items � only include visible S1 widgets so hidden ones don't inflate grid height --
+  // Hidden widgets are excluded from the layout entirely; their saved positions stay in `boxes`.
+  const s1AllItems = staticItems
+    .filter((item) => item.i.startsWith("s1-") && visibleS1Widgets.includes(item.i));
 
   const fwItems = [
     ...staticItems.filter((item) => item.i.startsWith("fw-")),
@@ -473,11 +638,11 @@ export default function DashboardPage() {
   ];
 
   const s1Layouts = {
-    lg: s1Items,
-    md: s1Items,
-    sm: s1Items,
-    xs: s1Items,
-    xxs: s1Items,
+    lg: s1AllItems,
+    md: s1AllItems,
+    sm: s1AllItems,
+    xs: s1AllItems,
+    xxs: s1AllItems,
   };
 
   const fwLayouts = {
@@ -488,15 +653,21 @@ export default function DashboardPage() {
     xxs: fwItems,
   };
 
-  // ── Handlers ──────────────────────────────────────────────────────────────────
+  // -- Handlers ------------------------------------------------------------------
   const handleLayoutChange = (newLayout: Layout, _allLayouts: Partial<Record<string, Layout>>) => {
+    // Update static S1/FW-explorer boxes
     const nextBoxes = boxes.map(box => {
       const l = newLayout.find(n => n.i === box.i);
-      return l ? { ...box, x: l.x, y: l.y, w: l.w, h: l.h } : box;
+      if (!l) return box;
+      // Never overwrite the stored size of a hidden S1 widget
+      if (box.i.startsWith("s1-") && !visibleS1Widgets.includes(box.i)) return box;
+      return { ...box, x: l.x, y: l.y, w: l.w, h: l.h };
     });
+    // Update dynamic firewall widgets and persist each to DB
     setFwWidgets(prev => prev.map(widget => {
       const l = newLayout.find(n => n.i === widget.id);
       if (!l) return widget;
+      // Persist resize/move to DB immediately
       fetch(`/api/firewall/widgets/${widget.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ x: l.x, y: l.y, w: l.w, h: l.h }),
@@ -505,6 +676,12 @@ export default function DashboardPage() {
     }));
     setBoxes(nextBoxes);
     persistLayout(nextBoxes);
+  };
+
+  // Save layout immediately when exiting edit mode
+  const handleDoneEditing = () => {
+    setIsEditMode(false);
+    persistLayout(boxes);
   };
 
   const handleCollect = async () => {
@@ -615,25 +792,40 @@ export default function DashboardPage() {
     });
   };
 
+  // -- Widget remove helpers -----------------------------------------------------
+  const removeS1Widget = (id: string) => {
+    const next = visibleS1Widgets.filter(w => w !== id);
+    visibleS1WidgetsRef.current = next;
+    setVisibleS1Widgets(next);
+    persistLayout(boxes);
+  };
+
+  const removeCpWidget = (id: string) => {
+    const next = visibleCpWidgets.filter(w => w !== id);
+    visibleCpWidgetsRef.current = next;
+    setVisibleCpWidgets(next);
+    persistLayout(boxes);
+  };
+
   return (
     <div className="p-3 sm:p-5 lg:p-6">
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* -- Header ----------------------------------------------------------- */}
       <div className="flex items-center justify-between gap-3 mb-5">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-[var(--foreground)]">Dashboard</h1>
           {isEditMode && (
-            <p className="text-xs text-indigo-500 mt-0.5">Edit mode — drag sections &amp; resize widgets</p>
+            <p className="text-xs text-indigo-500 mt-0.5">Edit mode � drag sections &amp; resize widgets</p>
           )}
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Save indicator */}
-          {saving && <span className="text-xs text-[var(--muted)] flex items-center gap-1.5"><div className="animate-spin w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full" />Saving…</span>}
+          {saving && <span className="text-xs text-[var(--muted)] flex items-center gap-1.5"><div className="animate-spin w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full" />Saving�</span>}
           {saved && <span className="text-xs text-green-600 flex items-center gap-1"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Saved</span>}
 
           {/* Edit Layout toggle */}
           <button
-            onClick={() => setIsEditMode(p => !p)}
+            onClick={() => isEditMode ? handleDoneEditing() : setIsEditMode(true)}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${isEditMode
               ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
               : "bg-[var(--card-bg)] text-[var(--foreground)] border-[var(--card-border)] hover:border-indigo-400 hover:text-indigo-600"
@@ -658,20 +850,20 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Edit mode banner ────────────────────────────────────────────────── */}
+      {/* -- Edit mode banner -------------------------------------------------- */}
       {isEditMode && (
         <div className="mb-4 px-4 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 flex items-center gap-2.5">
           <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
-            Drag section headers to reorder · Drag widget title bars to move · Pull widget edges to resize
+            Drag section headers to reorder � Drag widget title bars to move � Pull widget edges to resize
           </p>
-          <button onClick={() => setIsEditMode(false)} className="ml-auto text-indigo-500 hover:text-indigo-700 text-xs font-semibold">Done</button>
+          <button onClick={handleDoneEditing} className="ml-auto text-indigo-500 hover:text-indigo-700 text-xs font-semibold">Done</button>
         </div>
       )}
 
-      {/* ── Add Widget Modal ─────────────────────────────────────────────────── */}
+      {/* -- Add Widget Modal --------------------------------------------------- */}
       {showAddWidget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={() => setShowAddWidget(false)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
@@ -765,7 +957,7 @@ export default function DashboardPage() {
             {/* Tab body */}
             <div className="max-h-[65vh] overflow-y-auto">
 
-              {/* ── CHECKPOINT ── */}
+              {/* -- CHECKPOINT -- */}
               {widgetSource === "checkpoint" && (
                 <CheckpointWidgetPicker
                   selected={cpSelected}
@@ -775,26 +967,58 @@ export default function DashboardPage() {
                     )
                   }
                   onAdd={(ids) => {
-                    setVisibleCpWidgets(prev => Array.from(new Set([...prev, ...ids])));
+                    setVisibleCpWidgets(prev => {
+                      const next = Array.from(new Set([...prev, ...ids]));
+                      visibleCpWidgetsRef.current = next;
+                      return next;
+                    });
                     setCpSelected([]);
                     setShowAddWidget(false);
+                    // Persist the new visible set immediately
+                    persistLayout(boxes);
                   }}
                   onCancel={() => setShowAddWidget(false)}
                 />
               )}
 
-              {/* ── SENTINELONE ── */}
+              {/* -- SENTINELONE -- */}
               {widgetSource === "sentinelone" && (
                 <SentinelOneWidgetPicker
                   selected={s1Selected}
-                  // alreadyAdded={visibleS1Widgets}
                   onToggle={(id) =>
                     setS1Selected(prev =>
                       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
                     )
                   }
-                  onAdd={(ids) => {
-                    setVisibleS1Widgets(prev => Array.from(new Set([...prev, ...ids])));
+                  onAdd={(configs: S1WidgetConfig[]) => {
+                    const ids = configs.map(c => c.id);
+                    // Add to visible list (de-duped) and sync ref immediately
+                    const nextVisible = Array.from(new Set([...visibleS1WidgetsRef.current, ...ids]));
+                    visibleS1WidgetsRef.current = nextVisible;
+                    setVisibleS1Widgets(nextVisible);
+                    // Store full widget config and sync ref immediately
+                    const nextConfigs = { ...s1WidgetConfigsRef.current };
+                    configs.forEach(c => { nextConfigs[c.id] = c; });
+                    s1WidgetConfigsRef.current = nextConfigs;
+                    setS1WidgetConfigs(nextConfigs);
+                    // Ensure every added widget has a layout box in `boxes`
+                    setBoxes(prev => {
+                      const existingIds = new Set(prev.map(b => b.i));
+                      const newBoxes = ids
+                        .filter(id => !existingIds.has(id))
+                        .map((id, idx) => {
+                          // Place new widgets below the lowest existing S1 widget
+                          const s1Boxes = prev.filter(b => b.i.startsWith("s1-"));
+                          const maxY = s1Boxes.length > 0
+                            ? Math.max(...s1Boxes.map(b => b.y + b.h))
+                            : 0;
+                          return { i: id, x: (idx % 4) * 3, y: maxY + (Math.floor(idx / 4) * 33), w: 3, h: 33 };
+                        });
+                      const finalBoxes = newBoxes.length > 0 ? [...prev, ...newBoxes] : prev;
+                      // Persist with the updated boxes and the fresh refs
+                      persistLayout(finalBoxes);
+                      return finalBoxes;
+                    });
                     setS1Selected([]);
                     setShowAddWidget(false);
                   }}
@@ -802,7 +1026,7 @@ export default function DashboardPage() {
                 />
               )}
 
-              {/* ── FIREWALL ── */}
+              {/* -- FIREWALL -- */}
               {widgetSource === "firewall" && (
                 <div>
                   <div className="px-5 py-4 space-y-4">
@@ -828,7 +1052,7 @@ export default function DashboardPage() {
                           onClick={() => { setShowFwX(p => !p); setShowFwY(false); }}
                           className={`w-full h-9 border rounded-lg px-3 text-sm font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors ${fwXAxis.length ? "border-blue-400 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : "border-[var(--input-border)] bg-[var(--card-bg)] text-[var(--muted)]"}`}
                         >
-                          <span className="truncate flex-1 text-left text-xs">{fwXAxis.length === 0 ? "Select column…" : fwXAxis.length === 1 ? fwXAxis[0] : `${fwXAxis.length} selected`}</span>
+                          <span className="truncate flex-1 text-left text-xs">{fwXAxis.length === 0 ? "Select column�" : fwXAxis.length === 1 ? fwXAxis[0] : `${fwXAxis.length} selected`}</span>
                           <svg className="w-3 h-3 flex-shrink-0 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </button>
                         {showFwX && (
@@ -845,7 +1069,7 @@ export default function DashboardPage() {
                             )}
                             <div className="max-h-44 overflow-auto p-1.5">
                               {fwColumns.length === 0
-                                ? <p className="text-xs text-[var(--muted)] px-3 py-2">No columns — select a report first</p>
+                                ? <p className="text-xs text-[var(--muted)] px-3 py-2">No columns � select a report first</p>
                                 : fwColumns.map(col => {
                                   const isChecked = fwXAxis.includes(col);
                                   const isDisabled = !isChecked && fwXAxis.length >= 2;
@@ -869,7 +1093,7 @@ export default function DashboardPage() {
                           onClick={() => { setShowFwY(p => !p); setShowFwX(false); }}
                           className={`w-full h-9 border rounded-lg px-3 text-sm font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors ${fwYAxis.length ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "border-[var(--input-border)] bg-[var(--card-bg)] text-[var(--muted)]"}`}
                         >
-                          <span className="truncate flex-1 text-left text-xs">{fwYAxis.length === 0 ? "Select column…" : fwYAxis.length === 1 ? fwYAxis[0] : `${fwYAxis.length} selected`}</span>
+                          <span className="truncate flex-1 text-left text-xs">{fwYAxis.length === 0 ? "Select column�" : fwYAxis.length === 1 ? fwYAxis[0] : `${fwYAxis.length} selected`}</span>
                           <svg className="w-3 h-3 flex-shrink-0 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </button>
                         {showFwY && (
@@ -886,7 +1110,7 @@ export default function DashboardPage() {
                             )}
                             <div className="max-h-44 overflow-auto p-1.5">
                               {fwColumns.length === 0
-                                ? <p className="text-xs text-[var(--muted)] px-3 py-2">No columns — select a report first</p>
+                                ? <p className="text-xs text-[var(--muted)] px-3 py-2">No columns � select a report first</p>
                                 : fwColumns.map(col => {
                                   const isChecked = fwYAxis.includes(col);
                                   const isDisabled = !isChecked && fwYAxis.length >= 2;
@@ -928,13 +1152,13 @@ export default function DashboardPage() {
                         {fwXAxis.map(x => (
                           <span key={x} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
                             <span className="opacity-60 mr-0.5">X</span>{x}
-                            <button onClick={() => setFwXAxis(p => p.filter(v => v !== x))} className="w-3.5 h-3.5 rounded-full hover:bg-blue-200 flex items-center justify-center ml-0.5">×</button>
+                            <button onClick={() => setFwXAxis(p => p.filter(v => v !== x))} className="w-3.5 h-3.5 rounded-full hover:bg-blue-200 flex items-center justify-center ml-0.5">�</button>
                           </span>
                         ))}
                         {fwYAxis.map(y => (
                           <span key={y} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">
                             <span className="opacity-60 mr-0.5">Y</span>{y}
-                            <button onClick={() => setFwYAxis(p => p.filter(v => v !== y))} className="w-3.5 h-3.5 rounded-full hover:bg-emerald-200 flex items-center justify-center ml-0.5">×</button>
+                            <button onClick={() => setFwYAxis(p => p.filter(v => v !== y))} className="w-3.5 h-3.5 rounded-full hover:bg-emerald-200 flex items-center justify-center ml-0.5">�</button>
                           </span>
                         ))}
                       </div>
@@ -967,119 +1191,188 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ───────────────── SECTION MAPPING ───────────────── */}
+      {/* ----------------- SECTION MAPPING ----------------- */}
+      <div className="flex flex-col divide-y divide-[var(--card-border)]">
       {sectionOrder.map((section) => {
 
         if (section === "checkpoint") {
           return (
             <div
               key="checkpoint"
-              className="mb-10"
               onDragOver={(e) => { e.preventDefault(); moveSection("checkpoint"); }}
+              className="group/sec"
             >
-              {/* ── CHECKPOINT HARMONY ──────────────────────────────────────────────── */}
-              <div className="mb-8">
-                {/* Section header — ONLY this bar is draggable (only in edit mode) */}
+              {/* -- CHECKPOINT HARMONY ------------------------------------------------ */}
+              <div className="pt-4 pb-5">
+                {/* Section header */}
                 <div
                   draggable={isEditMode}
                   onDragStart={(e) => { if (!isEditMode) return; e.stopPropagation(); dragSectionRef.current = "checkpoint"; }}
                   onDragEnd={(e) => { e.stopPropagation(); dragSectionRef.current = null; }}
-                  className={`flex items-center gap-3 mb-4 select-none ${isEditMode ? "cursor-move" : "cursor-default"}`}
+                  className={`flex items-center gap-3 mb-4 select-none rounded-xl px-3 py-2 transition-all duration-200 ${isEditMode ? "cursor-move bg-indigo-50/50 dark:bg-indigo-900/10 border border-dashed border-indigo-300 dark:border-indigo-700" : "cursor-default"}`}
                 >
-                  <div className="w-1 h-6 rounded-full bg-indigo-500 flex-shrink-0" />
+                  <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-indigo-400 to-indigo-600 flex-shrink-0 shadow-sm" />
                   <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                    <h2 className="text-sm font-bold text-[var(--foreground)] uppercase tracking-wider">Checkpoint Harmony</h2>
+                    <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-none">Security</p>
+                      <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">Checkpoint Harmony</h2>
+                    </div>
                   </div>
-                  <div className="flex-1 h-px bg-[var(--card-border)]" />
+                  <div className="flex-1 h-px bg-gradient-to-r from-indigo-200 via-[var(--card-border)] to-transparent dark:from-indigo-800" />
+                  {isEditMode && <span className="text-[10px] text-indigo-400 font-medium flex items-center gap-1 flex-shrink-0"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>drag</span>}
                 </div>
-                <CheckpointCards />
+
+                {/* -- Individual Checkpoint Widget Cards -- */}
+                {visibleCpWidgets.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-indigo-200 dark:border-indigo-800 rounded-2xl bg-indigo-50/30 dark:bg-indigo-900/10">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
+                      <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-semibold text-[var(--foreground)] mb-1">No widgets added yet</p>
+                    <p className="text-xs text-[var(--muted)]">Click "Add Widget" ? Checkpoint to add cards here</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {visibleCpWidgets.map((id, idx) => {
+                      const opt = WIDGET_OPTIONS.find(w => w.id === id);
+                      if (!opt) return null;
+                      const filtered = cpEvents.filter((e: any) => opt.eventTypes.includes(e.type));
+                      const total = filtered.length;
+                      const pending = filtered.filter((e: any) => e.state === "new" || e.state === "pending").length;
+                      const remediated = filtered.filter((e: any) => ["remediated", "closed", "done"].includes(e.state)).length;
+                      const remediatedPct = total > 0 ? Math.round((remediated / total) * 100) : 0;
+                      const pendingPct = total > 0 ? Math.round((pending / total) * 100) : 0;
+                      return (
+                        <div
+                          key={id}
+                          className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                          style={{ animationDelay: `${idx * 60}ms` }}
+                        >
+                          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-indigo-50 to-transparent dark:from-indigo-900/20 dark:to-transparent border-b border-[var(--card-border)]">
+                            <div>
+                              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Checkpoint</p>
+                              <p className="text-sm font-bold text-[var(--foreground)]">{opt.label}</p>
+                            </div>
+                            <button
+                              onClick={() => removeCpWidget(id)}
+                              className={`w-6 h-6 flex items-center justify-center rounded-lg text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                              title="Remove widget"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="p-4">
+                            {cpEventsLoading ? (
+                              <div className="flex items-center justify-center py-4">
+                                <div className="animate-spin w-5 h-5 border-4 border-indigo-500 border-t-transparent rounded-full" />
+                              </div>
+                            ) : total === 0 ? (
+                              <p className="text-xs text-[var(--muted)] text-center py-3">No events</p>
+                            ) : (
+                              <>
+                                <div className="flex items-end justify-between mb-3">
+                                  <span className="text-3xl font-bold text-[var(--foreground)]">{total}</span>
+                                  <span className="text-[10px] text-[var(--muted)] font-medium uppercase tracking-wide pb-1">Total Events</span>
+                                </div>
+                                <div className="space-y-2">
+                                  <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                      <span className="text-green-600 dark:text-green-400 font-medium">Remediated</span>
+                                      <span className="font-semibold text-[var(--foreground)]">{remediatedPct}%</span>
+                                    </div>
+                                    <div className="w-full bg-[var(--muted-bg)] rounded-full h-1.5 overflow-hidden">
+                                      <div className="h-1.5 rounded-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-700" style={{ width: `${remediatedPct}%` }} />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                      <span className="text-red-500 font-medium">Pending</span>
+                                      <span className="font-semibold text-[var(--foreground)]">{pendingPct}%</span>
+                                    </div>
+                                    <div className="w-full bg-[var(--muted-bg)] rounded-full h-1.5 overflow-hidden">
+                                      <div className="h-1.5 rounded-full bg-gradient-to-r from-red-400 to-red-600 transition-all duration-700" style={{ width: `${pendingPct}%` }} />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-1">
+                                  {opt.eventTypes.map(t => (
+                                    <span key={t} className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 capitalize">
+                                      {t.replace(/_/g, " ")}
+                                    </span>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           );
         }
 
-        /* ───────── SENTINELONE ───────── */
         if (section === "sentinelone") {
           return (
             <div
               key="sentinelone"
-              className="mb-10"
               onDragOver={(e) => { e.preventDefault(); moveSection("sentinelone"); }}
+              className="group/sec"
             >
-              {/* ── SENTINELONE ─────────────────────────────────────────────────────── */}
-              <div className="mb-4">
-                {/* Section header — ONLY this bar is draggable */}
+              {/* -- SENTINELONE ------------------------------------------------------- */}
+              <div className="pt-4 pb-2">
+                {/* Section header � ONLY this bar is draggable */}
                 <div
                   draggable
                   onDragStart={(e) => { e.stopPropagation(); dragSectionRef.current = "sentinelone"; }}
                   onDragEnd={(e) => { e.stopPropagation(); dragSectionRef.current = null; }}
-                  className="flex items-center gap-3 mb-4 cursor-move select-none"
+                  className="flex items-center gap-3 mb-3 cursor-move select-none rounded-xl px-3 py-2 transition-all duration-200 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
                 >
-                  <div className="w-1 h-6 rounded-full bg-emerald-500 flex-shrink-0" />
-
+                  <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 flex-shrink-0 shadow-sm" />
                   <div className="flex items-center gap-2">
-                    <svg
-                      className="w-4 h-4 text-emerald-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                      />
-                    </svg>
-
-                    <h2 className="text-sm font-bold text-[var(--foreground)] uppercase tracking-wider">
-                      SentinelOne
-                    </h2>
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Endpoint</p>
+                      <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">SentinelOne</h2>
+                    </div>
                   </div>
-
-                  <div className="flex-1 h-px bg-[var(--card-border)]" />
-
+                  <div className="flex-1 h-px bg-gradient-to-r from-emerald-200 via-[var(--card-border)] to-transparent dark:from-emerald-800" />
                   <button
                     onClick={(e) => { e.stopPropagation(); handleS1Sync(); }}
                     disabled={s1Syncing}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 disabled:opacity-50 transition-colors flex-shrink-0"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 disabled:opacity-50 transition-all duration-150 flex-shrink-0 border border-emerald-200 dark:border-emerald-700"
                   >
                     {s1Syncing ? (
-                      <>
-                        <div className="animate-spin w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full" />
-                        Syncing…
-                      </>
+                      <><div className="animate-spin w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full" />Syncing�</>
                     ) : (
-                      <>
-                        <svg
-                          className="w-3 h-3"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                        Sync
-                      </>
+                      <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Sync</>
                     )}
                   </button>
                 </div>
 
                 {s1SyncMsg && (
                   <div
-                    className={`mb-3 px-3 py-2 rounded-lg text-xs border ${s1SyncMsg.ok
+                    className={`mb-3 px-3 py-2 rounded-lg text-xs border flex items-center gap-2 ${s1SyncMsg.ok
                       ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
                       : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
                       }`}
                   >
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={s1SyncMsg.ok ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} /></svg>
                     {s1SyncMsg.text}
                   </div>
                 )}
@@ -1088,7 +1381,7 @@ export default function DashboardPage() {
               {/* GRID */}
               <div
                 ref={containerRef}
-                className="w-full min-w-0 mt-1"
+                className="w-full min-w-0"
                 onDragStart={(e) => e.stopPropagation()}
               >
                 <ResponsiveGridLayout
@@ -1100,27 +1393,30 @@ export default function DashboardPage() {
                   width={containerWidth}
                   onLayoutChange={handleLayoutChange}
                   compactor={noCompactor}
-                  preventCollision={true}
-                  allowOverlap={false}
-                  isBounded={true}
-                  isDraggable={isEditMode}
-                  isResizable={isEditMode}
-                  draggableHandle=".drag-handle"
-                  resizeHandles={["s", "w", "e", "n", "sw", "nw", "se", "ne"]}
+                  dragConfig={{ enabled: isEditMode, handle: ".drag-handle" }}
+                  resizeConfig={{ enabled: isEditMode, handles: ["s", "w", "e", "n", "sw", "nw", "se", "ne"] }}
                   margin={[10, 10]}
                 >
-                  {/* ── Mitigation Status — only render if visible ── */}
-                  {visibleS1Widgets.includes("s1-mitigation") && (
-                    <div key="s1-mitigation" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
+                  {/* -- Mitigation Status � always rendered, hidden via style when not visible -- */}
+                  <div key="s1-mitigation" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-mitigation") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
                       <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
                         <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Mitigation Status</p></div>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 items-center">
                           {(["donut", "probability", "bar"] as const).map(ct => (
                             <button key={ct} onClick={e => { e.stopPropagation(); setMitigationChart(ct); }}
                               className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${mitigationChart === ct ? "bg-indigo-600 text-white" : "bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--muted)] hover:bg-[var(--muted-bg)]"}`}>
                               {ct === "donut" ? "Donut" : ct === "probability" ? "%" : "Bar"}
                             </button>
                           ))}
+                          <button
+                            onClick={e => { e.stopPropagation(); removeS1Widget("s1-mitigation"); }}
+                            className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                            title="Remove widget"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
                       <div className="flex-1 min-h-0 p-3 relative">
@@ -1163,15 +1459,22 @@ export default function DashboardPage() {
                           )
                         }
                       </div>
-                    </div>
-                  )}
+                  </div>
 
-                  {/* ── Threat Severity — only render if visible ── */}
-                  {visibleS1Widgets.includes("s1-severity") && (
-                    <div key="s1-severity" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
-                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex-shrink-0 select-none">
-                        <p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Threat Severity</p>
-                      </div>
+                  {/* -- Threat Severity � always rendered, hidden via style when not visible -- */}
+                  <div key="s1-severity" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-severity") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Threat Severity</p></div>
+                      <button
+                        onClick={e => { e.stopPropagation(); removeS1Widget("s1-severity"); }}
+                        className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                        title="Remove widget"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                       <div className="flex-1 min-h-0 p-3">
                         {s1Loading ? <Spin /> : s1Error ? <Err msg={s1Error} /> : severityData.length === 0 ? <Empty msg="No severity data" /> : (
                           <ResponsiveContainer width="100%" height="100%">
@@ -1185,15 +1488,22 @@ export default function DashboardPage() {
                           </ResponsiveContainer>
                         )}
                       </div>
-                    </div>
-                  )}
+                  </div>
 
-                  {/* ── Recent Threats — only render if visible ── */}
-                  {visibleS1Widgets.includes("s1-threats") && (
-                    <div key="s1-threats" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
-                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex-shrink-0 select-none">
-                        <p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Recent Threats</p>
-                      </div>
+                  {/* -- Recent Threats � always rendered, hidden via style when not visible -- */}
+                  <div key="s1-threats" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-threats") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Recent Threats</p></div>
+                      <button
+                        onClick={e => { e.stopPropagation(); removeS1Widget("s1-threats"); }}
+                        className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                        title="Remove widget"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                       <div className="flex-1 min-h-0 overflow-auto">
                         {s1Loading ? <Spin /> : s1Error ? <Err msg={s1Error} /> : recentThreats.length === 0 ? <Empty msg="No threats found" /> : (
                           <table className="w-full text-xs">
@@ -1208,7 +1518,7 @@ export default function DashboardPage() {
                                   <tr key={i} className={i % 2 === 0 ? "bg-[var(--card-bg)]" : "bg-[var(--muted-bg)]"}>
                                     <td className="px-3 py-2 border-b border-[var(--card-border)]">
                                       <p className="font-medium text-[var(--foreground)] truncate max-w-[110px]">{t.threatInfo?.threatName || "Unknown"}</p>
-                                      <p className="text-[var(--muted)] truncate max-w-[110px]">{t.agentRealtimeInfo?.agentComputerName || "—"}</p>
+                                      <p className="text-[var(--muted)] truncate max-w-[110px]">{t.agentRealtimeInfo?.agentComputerName || "�"}</p>
                                     </td>
                                     <td className="px-3 py-2 border-b border-[var(--card-border)]">
                                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${cls}`}>{status.replace(/_/g, " ")}</span>
@@ -1220,19 +1530,26 @@ export default function DashboardPage() {
                           </table>
                         )}
                       </div>
-                    </div>
-                  )}
+                  </div>
 
-                  {/* ── Agent Status — only render if visible ── */}
-                  {visibleS1Widgets.includes("s1-agents") && (
-                    <div key="s1-agents" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
-                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Agent Status</p></div>
-                        <div className="flex gap-1">
-                          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">{activeAgents} Active</span>
-                          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{inactiveAgents} Inactive</span>
-                        </div>
+                  {/* -- Agent Status � always rendered, hidden via style when not visible -- */}
+                  <div key="s1-agents" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-agents") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Agent Status</p></div>
+                      <div className="flex gap-1 items-center">
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">{activeAgents} Active</span>
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{inactiveAgents} Inactive</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-agents"); }}
+                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          title="Remove widget"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
+                    </div>
                       <div className="flex-1 min-h-0 overflow-auto">
                         {agentLoading ? <Spin /> : agentError ? <Err msg={agentError} /> : agentData.length === 0 ? <Empty msg="No agent info found" /> : (
                           <table className="w-full text-xs">
@@ -1242,7 +1559,7 @@ export default function DashboardPage() {
                             <tbody>
                               {agentData.map((a, i) => (
                                 <tr key={i} className={i % 2 === 0 ? "bg-[var(--card-bg)]" : "bg-[var(--muted-bg)]"}>
-                                  <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--muted)] whitespace-nowrap">{a.computerName || "—"}</td>
+                                  <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--muted)] whitespace-nowrap">{a.computerName || "�"}</td>
                                   <td className="px-3 py-2 border-b border-[var(--card-border)]">
                                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${a.isActive ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"}`}>{a.isActive ? "Active" : "Inactive"}</span>
                                   </td>
@@ -1252,169 +1569,176 @@ export default function DashboardPage() {
                           </table>
                         )}
                       </div>
-                    </div>
-                  )}
+                  </div>
 
-                  {/* ── Application Agents — only render if visible ── */}
-                  {visibleS1Widgets.includes("s1-app-agent") && (
-                    <div key="s1-app-agent" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
-                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application Agents</p></div>
+                  {/* -- Application Agents � always present in RGL, hidden until added -- */}
+                  <div key="s1-app-agent" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-app-agent") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application Agents</p></div>
+                      <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{appAgentData.length} records</span>
-                      </div>
-                      <div className="flex-1 min-h-0 overflow-auto">
-                        {appAgentLoading ? <Spin /> : appAgentData.length === 0 ? <Empty msg="No application agent data — sync first" /> : (
-                          <table className="w-full text-xs">
-                            <thead className="sticky top-0 z-10 bg-[var(--muted-bg)]">
-                              <tr>
-                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Name</th>
-                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Risk Level</th>
-                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Agent</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {appAgentData.slice(0, 50).map((item: any, i: number) => {
-                                const name = item.name || item.applicationName || item.app_name || "Unknown";
-                                const risk = item.riskLevel || item.risk_level || item.riskScore || "—";
-                                const agent = item.computerName || item.agentComputerName || item.endpointName || "—";
-                                const riskCls = String(risk).toLowerCase() === "critical" ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                                  : String(risk).toLowerCase() === "high" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-                                  : String(risk).toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
-                                  : "bg-[var(--muted-bg)] text-[var(--muted)]";
-                                return (
-                                  <tr key={i} className={i % 2 === 0 ? "bg-[var(--card-bg)]" : "bg-[var(--muted-bg)]"}>
-                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--foreground)] truncate max-w-[120px]">{name}</td>
-                                    <td className="px-3 py-2 border-b border-[var(--card-border)]">
-                                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${riskCls}`}>{risk}</span>
-                                    </td>
-                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--muted)] truncate max-w-[100px]">{agent}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        )}
+                        <div className="flex items-center gap-0.5 bg-[var(--card-bg)] rounded-lg p-0.5 border border-[var(--card-border)]">
+                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-agent": { ...(p["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }), viewMode: "graph" } })); }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${s1WidgetConfigs["s1-app-agent"]?.viewMode === "graph" ? "bg-emerald-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Graph</button>
+                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-agent": { ...(p["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }), viewMode: "table" } })); }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${(s1WidgetConfigs["s1-app-agent"]?.viewMode ?? "table") === "table" ? "bg-blue-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Table</button>
+                        </div>
+                        <button
+                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-app-agent"); }}
+                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          title="Remove widget"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
-                  )}
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                      <S1ConfigWidget data={appAgentData} loading={appAgentLoading}
+                        config={s1WidgetConfigs["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }}
+                        onConfigChange={patch => setS1WidgetConfigs(p => ({ ...p, "s1-app-agent": { ...(p["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }), ...patch } }))}
+                        accentColor="#a855f7" />
+                    </div>
+                  </div>
 
-                  {/* ── Application CVEs — only render if visible ── */}
-                  {visibleS1Widgets.includes("s1-app-cve") && (
-                    <div key="s1-app-cve" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
-                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application CVEs</p></div>
+                  {/* -- Application CVEs � always present in RGL, hidden until added -- */}
+                  <div key="s1-app-cve" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-app-cve") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application CVEs</p></div>
+                      <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{appCveData.length} CVEs</span>
-                      </div>
-                      <div className="flex-1 min-h-0 overflow-auto">
-                        {appCveLoading ? <Spin /> : appCveData.length === 0 ? <Empty msg="No CVE data — sync first" /> : (
-                          <table className="w-full text-xs">
-                            <thead className="sticky top-0 z-10 bg-[var(--muted-bg)]">
-                              <tr>
-                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">CVE ID</th>
-                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Severity</th>
-                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">App</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {appCveData.slice(0, 50).map((item: any, i: number) => {
-                                const cveId = item.cveId || item.cve_id || item.id || "—";
-                                const severity = item.severity || item.cvssScore || "—";
-                                const appName = item.applicationName || item.name || item.app_name || "—";
-                                const sevCls = String(severity).toLowerCase() === "critical" ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                                  : String(severity).toLowerCase() === "high" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-                                  : String(severity).toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
-                                  : "bg-[var(--muted-bg)] text-[var(--muted)]";
-                                return (
-                                  <tr key={i} className={i % 2 === 0 ? "bg-[var(--card-bg)]" : "bg-[var(--muted-bg)]"}>
-                                    <td className="px-3 py-2 border-b border-[var(--card-border)] font-mono text-blue-600 dark:text-blue-400">{cveId}</td>
-                                    <td className="px-3 py-2 border-b border-[var(--card-border)]">
-                                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${sevCls}`}>{severity}</span>
-                                    </td>
-                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--muted)] truncate max-w-[100px]">{appName}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        )}
+                        <div className="flex items-center gap-0.5 bg-[var(--card-bg)] rounded-lg p-0.5 border border-[var(--card-border)]">
+                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-cve": { ...(p["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }), viewMode: "graph" } })); }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${s1WidgetConfigs["s1-app-cve"]?.viewMode === "graph" ? "bg-emerald-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Graph</button>
+                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-cve": { ...(p["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }), viewMode: "table" } })); }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${(s1WidgetConfigs["s1-app-cve"]?.viewMode ?? "table") === "table" ? "bg-blue-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Table</button>
+                        </div>
+                        <button
+                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-app-cve"); }}
+                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          title="Remove widget"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
-                  )}
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                      <S1ConfigWidget data={appCveData} loading={appCveLoading}
+                        config={s1WidgetConfigs["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }}
+                        onConfigChange={patch => setS1WidgetConfigs(p => ({ ...p, "s1-app-cve": { ...(p["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }), ...patch } }))}
+                        accentColor="#ef4444" />
+                    </div>
+                  </div>
 
-                  {/* ── Device Control — only render if visible ── */}
-                  {visibleS1Widgets.includes("s1-device-control") && (
-                    <div key="s1-device-control" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
-                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Device Control</p></div>
+                  {/* -- Device Control � always present in RGL, hidden until added -- */}
+                  <div key="s1-device-control" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-device-control") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Device Control</p></div>
+                      <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{deviceControlData.length} events</span>
-                      </div>
-                      <div className="flex-1 min-h-0 overflow-auto">
-                        {deviceControlLoading ? <Spin /> : deviceControlData.length === 0 ? <Empty msg="No device control events — sync first" /> : (
-                          <table className="w-full text-xs">
-                            <thead className="sticky top-0 z-10 bg-[var(--muted-bg)]">
-                              <tr>
-                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Device</th>
-                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Status</th>
-                                <th className="text-left px-3 py-2 font-semibold text-[var(--muted)] border-b border-[var(--card-border)]">Agent</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {deviceControlData.slice(0, 50).map((item: any, i: number) => {
-                                const device = item.deviceName || item.device_name || item.productName || item.name || "Unknown";
-                                const status = item.accessPermission || item.status || item.ruleType || "—";
-                                const agent = item.computerName || item.agentComputerName || "—";
-                                const statusCls = String(status).toLowerCase().includes("block") ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                                  : String(status).toLowerCase().includes("allow") ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                                  : "bg-[var(--muted-bg)] text-[var(--muted)]";
-                                return (
-                                  <tr key={i} className={i % 2 === 0 ? "bg-[var(--card-bg)]" : "bg-[var(--muted-bg)]"}>
-                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--foreground)] truncate max-w-[100px]">{device}</td>
-                                    <td className="px-3 py-2 border-b border-[var(--card-border)]">
-                                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusCls}`}>{status}</span>
-                                    </td>
-                                    <td className="px-3 py-2 border-b border-[var(--card-border)] text-[var(--muted)] truncate max-w-[100px]">{agent}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        )}
+                        <div className="flex items-center gap-0.5 bg-[var(--card-bg)] rounded-lg p-0.5 border border-[var(--card-border)]">
+                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-device-control": { ...(p["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }), viewMode: "graph" } })); }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${s1WidgetConfigs["s1-device-control"]?.viewMode === "graph" ? "bg-emerald-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Graph</button>
+                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-device-control": { ...(p["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }), viewMode: "table" } })); }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${(s1WidgetConfigs["s1-device-control"]?.viewMode ?? "table") === "table" ? "bg-blue-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Table</button>
+                        </div>
+                        <button
+                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-device-control"); }}
+                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          title="Remove widget"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
-                  )}
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                      <S1ConfigWidget data={deviceControlData} loading={deviceControlLoading}
+                        config={s1WidgetConfigs["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }}
+                        onConfigChange={patch => setS1WidgetConfigs(p => ({ ...p, "s1-device-control": { ...(p["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }), ...patch } }))}
+                        accentColor="#6366f1" />
+                    </div>
+                  </div>
 
-                  {/* ── RSS Feed — only render if visible ── */}
-                  {visibleS1Widgets.includes("s1-rss") && (
-                    <div key="s1-rss" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden">
-                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">RSS Feed</p></div>
+                  {/* -- RSS Feed � always present in RGL, hidden until added -- */}
+                  <div key="s1-rss" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-rss") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">RSS Feed</p></div>
+                      <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{rssData.length} items</span>
-                      </div>
-                      <div className="flex-1 min-h-0 overflow-auto">
-                        {rssLoading ? <Spin /> : rssData.length === 0 ? <Empty msg="No RSS data — sync first" /> : (
-                          <div className="divide-y divide-[var(--card-border)]">
-                            {rssData.slice(0, 20).map((item: any, i: number) => {
-                              const title = item.title || item.name || "Untitled";
-                              const desc = item.description || item.summary || item.content || "";
-                              const link = item.link || item.url || item.guid || null;
-                              const date = item.pubDate || item.published || item.date || "";
-                              return (
-                                <div key={i} className="px-3 py-2.5 hover:bg-[var(--muted-bg)] transition-colors">
-                                  {link ? (
-                                    <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline line-clamp-2 block">{title}</a>
-                                  ) : (
-                                    <p className="text-xs font-semibold text-[var(--foreground)] line-clamp-2">{title}</p>
-                                  )}
-                                  {desc && <p className="text-[10px] text-[var(--muted)] mt-0.5 line-clamp-2">{String(desc).replace(/<[^>]+>/g, "")}</p>}
-                                  {date && <p className="text-[10px] text-[var(--muted)] mt-1">{new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                        <button
+                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-rss"); }}
+                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          title="Remove widget"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
-                  )}
+                    <div className="flex-1 min-h-0 overflow-auto">
+                      {rssLoading ? <Spin /> : rssData.length === 0 ? <Empty msg="No RSS data � sync first" /> : (
+                        <div className="divide-y divide-[var(--card-border)]">
+                          {rssData.slice(0, 20).map((item: any, i: number) => {
+                            const title = item.title || item.name || "Untitled";
+                            const desc = item.summary || item.description || item.content || "";
+                            const link = item.link || item.url || item.guid || null;
+                            const date = item.published || item.pubDate || item.date || "";
+                            // Extract thumbnail � match same logic as RssFeedPreview in picker
+                            const enclosureLink = Array.isArray(item?.links)
+                              ? item.links.find((l: any) => l?.rel === "enclosure")?.href ?? null
+                              : null;
+                            const image =
+                              enclosureLink ??
+                              item?.media_thumbnail ?? item?.enclosure?.url ?? item?.image?.url ??
+                              item?.["media:thumbnail"]?.url ?? item?.thumbnail ?? null;
+                            const displayDate = date
+                              ? new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                              : "";
+                            return (
+                              <div key={i} className="flex items-start gap-3 px-3 py-2.5 hover:bg-[var(--muted-bg)] transition-colors group">
+                                {/* Thumbnail */}
+                                <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-[var(--muted-bg)] flex items-center justify-center border border-[var(--card-border)]">
+                                  {image ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={image} alt="" className="w-full h-full object-cover"
+                                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                  ) : (
+                                    <svg className="w-5 h-5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9" />
+                                    </svg>
+                                  )}
+                                </div>
+                                {/* Text */}
+                                <div className="flex-1 min-w-0">
+                                  {link ? (
+                                    <a href={link} target="_blank" rel="noopener noreferrer"
+                                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline line-clamp-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 block leading-snug">
+                                      {title}
+                                    </a>
+                                  ) : (
+                                    <p className="text-xs font-semibold text-[var(--foreground)] line-clamp-2 leading-snug">{title}</p>
+                                  )}
+                                  {desc && <p className="text-[10px] text-[var(--muted)] mt-0.5 line-clamp-1">{String(desc).replace(/<[^>]+>/g, "")}</p>}
+                                  {displayDate && <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium">{displayDate}</p>}
+                                </div>
+                                {link && (
+                                  <svg className="w-3 h-3 text-[var(--muted)] group-hover:text-emerald-500 shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
                 </ResponsiveGridLayout>
               </div>
@@ -1422,84 +1746,55 @@ export default function DashboardPage() {
           );
         }
 
-        /* ───────── FIREWALL ───────── */
+        /* --------- FIREWALL --------- */
         return (
           <div
             key="firewall"
-            className="mb-10"
             onDragOver={(e) => { e.preventDefault(); moveSection("firewall"); }}
+            className="group/sec"
           >
-            {/* ── FIREWALL ────────────────────────────────────────────────────────── */}
-            <div className="mb-5 mt-8 relative z-10">
-              {/* Section header — ONLY this bar is draggable */}
+            {/* -- FIREWALL ---------------------------------------------------------- */}
+            <div className="pt-4 pb-5 relative z-10">
+              {/* Section header � ONLY this bar is draggable */}
               <div
                 draggable
                 onDragStart={(e) => { e.stopPropagation(); dragSectionRef.current = "firewall"; }}
                 onDragEnd={(e) => { e.stopPropagation(); dragSectionRef.current = null; }}
-                className="flex items-center gap-3 mb-4 cursor-move select-none"
+                className="flex items-center gap-3 mb-3 cursor-move select-none rounded-xl px-3 py-2 transition-all duration-200 hover:bg-orange-50/50 dark:hover:bg-orange-900/10"
               >
-                <div className="w-1 h-6 rounded-full bg-orange-500 flex-shrink-0" />
-
+                <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-orange-400 to-orange-600 flex-shrink-0 shadow-sm" />
                 <div className="flex items-center gap-2">
-                  <svg
-                    className="w-4 h-4 text-orange-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"
-                    />
-                  </svg>
-
-                  <h2 className="text-sm font-bold text-[var(--foreground)] uppercase tracking-wider">
-                    Palo Alto Firewall
-                  </h2>
+                  <div className="w-7 h-7 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest leading-none">Network</p>
+                    <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">Palo Alto Firewall</h2>
+                  </div>
                 </div>
-
-                <div className="flex-1 h-px bg-[var(--card-border)]" />
-
+                <div className="flex-1 h-px bg-gradient-to-r from-orange-200 via-[var(--card-border)] to-transparent dark:from-orange-800" />
                 <button
                   onClick={(e) => { e.stopPropagation(); handleCollect(); }}
                   disabled={collecting}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 disabled:opacity-50 transition-colors flex-shrink-0"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/30 disabled:opacity-50 transition-all duration-150 flex-shrink-0 border border-orange-200 dark:border-orange-700"
                 >
                   {collecting ? (
-                    <>
-                      <div className="animate-spin w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full" />
-                      Collecting…
-                    </>
+                    <><div className="animate-spin w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full" />Collecting�</>
                   ) : (
-                    <>
-                      <svg
-                        className="w-3 h-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                      Collect
-                    </>
+                    <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Collect</>
                   )}
                 </button>
               </div>
-
               {collectMsg && (
                 <div
-                  className={`mb-3 px-3 py-2 rounded-lg text-xs border ${collectMsg.ok
+                  className={`mb-3 px-3 py-2 rounded-lg text-xs border flex items-center gap-2 ${collectMsg.ok
                     ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
                     : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
                     }`}
                 >
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={collectMsg.ok ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} /></svg>
                   {collectMsg.text}
                 </div>
               )}
@@ -1507,7 +1802,7 @@ export default function DashboardPage() {
 
             {/* GRID */}
             <div
-              className="w-full min-w-0 mt-1"
+              className="w-full min-w-0"
               onDragStart={(e) => e.stopPropagation()}
             >
               <ResponsiveGridLayout
@@ -1519,21 +1814,15 @@ export default function DashboardPage() {
                 width={containerWidth}
                 onLayoutChange={handleLayoutChange}
                 compactor={noCompactor}
-                preventCollision={true}
-                allowOverlap={false}
-                isBounded={true}
-                isDraggable={isEditMode}
-                isResizable={isEditMode}
-                draggableHandle=".drag-handle"
-                resizeHandles={["s", "w", "e", "n", "sw", "nw", "se", "ne"]}
+                dragConfig={{ enabled: isEditMode, handle: ".drag-handle" }}
+                resizeConfig={{ enabled: isEditMode, handles: ["s", "w", "e", "n", "sw", "nw", "se", "ne"] }}
                 margin={[10, 10]}
               >
                 {/* Saved dynamic widgets */}
                 {fwWidgets.map(widget => (
                   <div key={widget.id}
-                    data-grid={{ i: widget.id, x: Number(widget.x ?? 0), y: Number(widget.y ?? 30), w: Number(widget.w ?? 6), h: Number(widget.h ?? 6), minW: 3, minH: 4 }}
                     className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm overflow-hidden">
-                    <FwGraphWidget widget={widget} onDelete={handleDeleteWidget} />
+                    <FwGraphWidget widget={widget} onDelete={handleDeleteWidget} isEditMode={isEditMode} />
                   </div>
                 ))}
               </ResponsiveGridLayout>
@@ -1541,12 +1830,13 @@ export default function DashboardPage() {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
 
-// ─── Inline FirewallGraphWidget (avoids import issues) ───────────────────────
-function FwGraphWidget({ widget, onDelete }: { widget: any; onDelete: (id: string) => void }) {
+// --- Inline FirewallGraphWidget (avoids import issues) -----------------------
+function FwGraphWidget({ widget, onDelete, isEditMode }: { widget: any; onDelete: (id: string) => void; isEditMode: boolean }) {
   const [raw, setRaw] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1583,9 +1873,9 @@ function FwGraphWidget({ widget, onDelete }: { widget: any; onDelete: (id: strin
         <div className="min-w-0">
           <p className="text-xs text-[var(--muted)] font-medium">Palo Alto Firewall</p>
           <p className="text-sm font-bold text-[var(--foreground)] truncate">{widget.report_name}</p>
-          <p className="text-[10px] text-[var(--muted)] mt-0.5 truncate">X: {xList.join(", ") || "—"} · Y: {yList.join(", ") || "—"}</p>
+          <p className="text-[10px] text-[var(--muted)] mt-0.5 truncate">X: {xList.join(", ") || "�"} � Y: {yList.join(", ") || "�"}</p>
         </div>
-        <button onClick={e => { e.stopPropagation(); onDelete(widget.id); }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg px-2 py-1 text-sm" title="Delete widget">🗑</button>
+        <button onClick={e => { e.stopPropagation(); onDelete(widget.id); }} className={`rounded-lg px-2 py-1 text-sm transition-all ${isEditMode ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-100" : "opacity-0 pointer-events-none"}`} title="Delete widget">??</button>
       </div>
       <div className="flex-1 min-h-0 p-3">
         {loading ? <div className="h-full flex items-center justify-center"><div className="animate-spin w-6 h-6 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>
@@ -1605,10 +1895,10 @@ function parseAxis(v: any): string[] {
   try { const p = JSON.parse(v); return Array.isArray(p) ? p : [String(v)]; } catch { return String(v).split(",").map(s => s.trim()).filter(Boolean); }
 }
 
-// ─── Dynamic chart component ──────────────────────────────────────────────────
+// --- Dynamic chart component --------------------------------------------------
 const PCOLS = ["#6366f1", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"];
 
-// ─── Column type detection ────────────────────────────────────────────────────
+// --- Column type detection ----------------------------------------------------
 function isTimeCol(col: string): boolean {
   return /time|date|timestamp/i.test(col);
 }
@@ -1626,12 +1916,12 @@ function parseN(v: any): number {
   return n;
 }
 
-/** Format a raw value for X-axis label — detects timestamps and date strings */
+/** Format a raw value for X-axis label � detects timestamps and date strings */
 function fmtLbl(v: any, colName?: string): string {
   const s = String(v ?? "");
-  if (!s || s === "undefined" || s === "null") return "—";
+  if (!s || s === "undefined" || s === "null") return "�";
 
-  // Unix timestamp (seconds or ms) — covers slabbed-receive_time
+  // Unix timestamp (seconds or ms) � covers slabbed-receive_time
   const num = Number(s.replace(/,/g, ""));
   if (!isNaN(num) && num > 1_000_000_000) {
     const ms = num > 9_999_999_999 ? num : num * 1000;
@@ -1651,7 +1941,7 @@ function fmtLbl(v: any, colName?: string): string {
     if (!isNaN(d.getTime())) return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
   }
 
-  return s.length > 20 ? s.slice(0, 20) + "…" : s;
+  return s.length > 20 ? s.slice(0, 20) + "�" : s;
 }
 
 function DynChart({ rows, xList, yList, chartType }: { rows: Record<string, any>[]; xList: string[]; yList: string[]; chartType: "bar" | "line" | "mixed" }) {
@@ -1661,7 +1951,7 @@ function DynChart({ rows, xList, yList, chartType }: { rows: Record<string, any>
   const xColName = xList[0] ?? "";
   const xIsTime = isTimeCol(xColName);
 
-  // Build data — pass colName to fmtLbl so timestamps are formatted
+  // Build data � pass colName to fmtLbl so timestamps are formatted
   const data = rows.slice(0, 50).map((row, i) => {
     const rawLabel = xList.length ? xList.map(x => row[x]).filter(v => v != null && v !== "").join(" | ") : `Item ${i + 1}`;
     const item: Record<string, any> = {
@@ -1686,7 +1976,7 @@ function DynChart({ rows, xList, yList, chartType }: { rows: Record<string, any>
   const anyBytes = yList.some(y => yIsBytesMap[y]);
   const yTickFmt = (v: number) => anyBytes ? fmtBytesShort(v) : v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(1)}K` : String(v);
 
-  // Tooltip formatters — cast to any to satisfy Recharts strict generics
+  // Tooltip formatters � cast to any to satisfy Recharts strict generics
   const tooltipFmt: any = (value: any, name: any) => {
     const n = Number(value);
     const k = String(name);
@@ -1754,7 +2044,7 @@ function DynChart({ rows, xList, yList, chartType }: { rows: Record<string, any>
   );
 }
 
-// ─── Utility functions ────────────────────────────────────────────────────────
+// --- Utility functions --------------------------------------------------------
 function getNum(v: any): number {
   if (v == null || v === "") return 0;
   const n = Number(String(v).replace(/,/g, "").replace(/[^\d.]/g, ""));
@@ -1776,7 +2066,7 @@ function fmtBytesShort(b: number): string {
 }
 
 function fmtCell(col: string, val: any): string {
-  if (val == null || val === "") return "—";
+  if (val == null || val === "") return "�";
   const s = String(val);
   if (col.includes("time") || col.includes("date")) { const ts = Number(val); if (!isNaN(ts) && ts > 1_000_000_000) return new Date(ts * 1000).toLocaleString(); const d = new Date(s); if (!isNaN(d.getTime())) return d.toLocaleString(); return s; }
   if (col === "nbytes" || col.includes("byte")) { const n = Number(val); if (!isNaN(n)) return fmtBytes(n); }
