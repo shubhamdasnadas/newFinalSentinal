@@ -45,15 +45,15 @@ interface BoxLayout { i: string; x: number; y: number; w: number; h: number; }
 
 const DEFAULT_BOXES: BoxLayout[] = [
   // SentinelOne core widgets (always visible by default)
-  { i: "s1-mitigation",    x: 0, y: 0,  w: 3, h: 33 },
-  { i: "s1-severity",      x: 3, y: 0,  w: 3, h: 33 },
-  { i: "s1-threats",       x: 6, y: 0,  w: 3, h: 33 },
-  { i: "s1-agents",        x: 9, y: 0,  w: 3, h: 33 },
+  { i: "s1-mitigation", x: 0, y: 0, w: 3, h: 33 },
+  { i: "s1-severity", x: 3, y: 0, w: 3, h: 33 },
+  { i: "s1-threats", x: 6, y: 0, w: 3, h: 33 },
+  { i: "s1-agents", x: 9, y: 0, w: 3, h: 33 },
   // SentinelOne extra widgets (added via picker)
-  { i: "s1-app-agent",      x: 0, y: 33, w: 3, h: 33 },
-  { i: "s1-app-cve",        x: 3, y: 33, w: 3, h: 33 },
+  { i: "s1-app-agent", x: 0, y: 33, w: 3, h: 33 },
+  { i: "s1-app-cve", x: 3, y: 33, w: 3, h: 33 },
   { i: "s1-device-control", x: 6, y: 33, w: 3, h: 33 },
-  { i: "s1-rss",            x: 9, y: 33, w: 3, h: 33 },
+  { i: "s1-rss", x: 9, y: 33, w: 3, h: 33 },
   // Firewall widget
   { i: "fw-explorer", x: 0, y: 0, w: 7, h: 44 },
 ];
@@ -94,7 +94,7 @@ function S1ConfigWidget({
   accentColor?: string;
 }) {
   const tooltipStyle = { background: "var(--card-bg)", border: "1px solid var(--card-border)", borderRadius: 8 };
-  const COLORS_LOCAL = ["#3b82f6","#f59e0b","#10b981","#ef4444","#8b5cf6","#06b6d4","#ec4899","#6366f1"];
+  const COLORS_LOCAL = ["#3b82f6", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#6366f1"];
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="animate-spin w-6 h-6 border-4 border-emerald-500 border-t-transparent rounded-full" /></div>;
   if (data.length === 0) return <div className="flex items-center justify-center h-full"><p className="text-sm text-[var(--muted)]">No data � sync first</p></div>;
@@ -102,6 +102,7 @@ function S1ConfigWidget({
   // -- Graph mode --
   if (config.viewMode === "graph") {
     const xKey = config.xKey ?? "";
+    const yKey = config.yKey ?? "";
     const dateFrom = config.dateFrom ?? "";
     const dateTo = config.dateTo ?? "";
     if (!xKey) return (
@@ -109,7 +110,12 @@ function S1ConfigWidget({
         <p className="text-xs text-[var(--muted)] text-center">No date field configured.<br />Reopen Add Widget and select an X-axis field.</p>
       </div>
     );
-    const chartData = buildChartData(data, xKey, dateFrom, dateTo);
+    if (!xKey) return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
+        <p className="text-xs text-[var(--muted)] text-center">No date field configured.<br />Reopen Add Widget and select an X-axis field.</p>
+      </div>
+    );
+    const chartData = buildChartData(data, xKey, yKey, dateFrom, dateTo);
     if (chartData.length === 0) return <div className="flex items-center justify-center h-full"><p className="text-sm text-[var(--muted)]">No records in date range</p></div>;
     return (
       <div className="p-3 h-full">
@@ -275,10 +281,10 @@ export default function DashboardPage() {
   ]);
   // Full per-widget config (viewMode + axis/column settings) captured from picker
   const [s1WidgetConfigs, setS1WidgetConfigs] = useState<Record<string, S1WidgetConfig>>({
-    "s1-mitigation":    { id: "s1-mitigation",    viewMode: "stat" },
-    "s1-severity":      { id: "s1-severity",      viewMode: "stat" },
-    "s1-threats":       { id: "s1-threats",       viewMode: "table" },
-    "s1-agents":        { id: "s1-agents",        viewMode: "table" },
+    "s1-mitigation": { id: "s1-mitigation", viewMode: "stat" },
+    "s1-severity": { id: "s1-severity", viewMode: "stat" },
+    "s1-threats": { id: "s1-threats", viewMode: "table" },
+    "s1-agents": { id: "s1-agents", viewMode: "table" },
   });
   // Checkpoint: start empty � user adds via picker
   const [visibleCpWidgets, setVisibleCpWidgets] = useState<string[]>([]);
@@ -291,9 +297,9 @@ export default function DashboardPage() {
   const visibleS1WidgetsRef = useRef<string[]>(["s1-mitigation", "s1-severity", "s1-threats", "s1-agents"]);
   const s1WidgetConfigsRef = useRef<Record<string, S1WidgetConfig>>({
     "s1-mitigation": { id: "s1-mitigation", viewMode: "stat" },
-    "s1-severity":   { id: "s1-severity",   viewMode: "stat" },
-    "s1-threats":    { id: "s1-threats",    viewMode: "table" },
-    "s1-agents":     { id: "s1-agents",     viewMode: "table" },
+    "s1-severity": { id: "s1-severity", viewMode: "stat" },
+    "s1-threats": { id: "s1-threats", viewMode: "table" },
+    "s1-agents": { id: "s1-agents", viewMode: "table" },
   });
   const visibleCpWidgetsRef = useRef<string[]>([]);
 
@@ -479,7 +485,7 @@ export default function DashboardPage() {
     fetch("/api/sentinelone/db/application-agent", { credentials: "include" })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.data)) setAppAgentData(d.data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setAppAgentLoading(false));
   }, [activeOrgSlug]);
 
@@ -489,7 +495,7 @@ export default function DashboardPage() {
     fetch("/api/sentinelone/db/application-cve", { credentials: "include" })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.data)) setAppCveData(d.data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setAppCveLoading(false));
   }, [activeOrgSlug]);
 
@@ -499,7 +505,7 @@ export default function DashboardPage() {
     fetch("/api/sentinelone/db/device-control", { credentials: "include" })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.data)) setDeviceControlData(d.data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setDeviceControlLoading(false));
   }, [activeOrgSlug]);
 
@@ -509,7 +515,7 @@ export default function DashboardPage() {
     fetch("/api/sentinelone/db/rss", { credentials: "include" })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.data)) setRssData(d.data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setRssLoading(false));
   }, [activeOrgSlug]);
 
@@ -520,7 +526,7 @@ export default function DashboardPage() {
     fetch("/api/harmony/events-db", { credentials: "include" })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.responseData)) setCpEvents(d.responseData); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setCpEventsLoading(false));
   }, [activeOrgSlug]);
 
@@ -721,19 +727,19 @@ export default function DashboardPage() {
         setAppAgentLoading(true);
         fetch("/api/sentinelone/db/application-agent", { credentials: "include" })
           .then(r => r.json()).then(d => { if (Array.isArray(d.data)) setAppAgentData(d.data); })
-          .catch(() => {}).finally(() => setAppAgentLoading(false));
+          .catch(() => { }).finally(() => setAppAgentLoading(false));
         setAppCveLoading(true);
         fetch("/api/sentinelone/db/application-cve", { credentials: "include" })
           .then(r => r.json()).then(d => { if (Array.isArray(d.data)) setAppCveData(d.data); })
-          .catch(() => {}).finally(() => setAppCveLoading(false));
+          .catch(() => { }).finally(() => setAppCveLoading(false));
         setDeviceControlLoading(true);
         fetch("/api/sentinelone/db/device-control", { credentials: "include" })
           .then(r => r.json()).then(d => { if (Array.isArray(d.data)) setDeviceControlData(d.data); })
-          .catch(() => {}).finally(() => setDeviceControlLoading(false));
+          .catch(() => { }).finally(() => setDeviceControlLoading(false));
         setRssLoading(true);
         fetch("/api/sentinelone/db/rss", { credentials: "include" })
           .then(r => r.json()).then(d => { if (Array.isArray(d.data)) setRssData(d.data); })
-          .catch(() => {}).finally(() => setRssLoading(false));
+          .catch(() => { }).finally(() => setRssLoading(false));
       }
     } catch { setS1SyncMsg({ text: "Sync failed", ok: false }); }
     finally { setS1Syncing(false); }
@@ -1193,212 +1199,212 @@ export default function DashboardPage() {
 
       {/* ----------------- SECTION MAPPING ----------------- */}
       <div className="flex flex-col divide-y divide-[var(--card-border)]">
-      {sectionOrder.map((section) => {
+        {sectionOrder.map((section) => {
 
-        if (section === "checkpoint") {
-          return (
-            <div
-              key="checkpoint"
-              onDragOver={(e) => { e.preventDefault(); moveSection("checkpoint"); }}
-              className="group/sec"
-            >
-              {/* -- CHECKPOINT HARMONY ------------------------------------------------ */}
-              <div className="pt-4 pb-5">
-                {/* Section header */}
-                <div
-                  draggable={isEditMode}
-                  onDragStart={(e) => { if (!isEditMode) return; e.stopPropagation(); dragSectionRef.current = "checkpoint"; }}
-                  onDragEnd={(e) => { e.stopPropagation(); dragSectionRef.current = null; }}
-                  className={`flex items-center gap-3 mb-4 select-none rounded-xl px-3 py-2 transition-all duration-200 ${isEditMode ? "cursor-move bg-indigo-50/50 dark:bg-indigo-900/10 border border-dashed border-indigo-300 dark:border-indigo-700" : "cursor-default"}`}
-                >
-                  <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-indigo-400 to-indigo-600 flex-shrink-0 shadow-sm" />
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-none">Security</p>
-                      <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">Checkpoint Harmony</h2>
-                    </div>
-                  </div>
-                  <div className="flex-1 h-px bg-gradient-to-r from-indigo-200 via-[var(--card-border)] to-transparent dark:from-indigo-800" />
-                  {isEditMode && <span className="text-[10px] text-indigo-400 font-medium flex items-center gap-1 flex-shrink-0"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>drag</span>}
-                </div>
-
-                {/* -- Individual Checkpoint Widget Cards -- */}
-                {visibleCpWidgets.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-indigo-200 dark:border-indigo-800 rounded-2xl bg-indigo-50/30 dark:bg-indigo-900/10">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
-                      <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                      </svg>
-                    </div>
-                    <p className="text-sm font-semibold text-[var(--foreground)] mb-1">No widgets added yet</p>
-                    <p className="text-xs text-[var(--muted)]">Click "Add Widget" ? Checkpoint to add cards here</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {visibleCpWidgets.map((id, idx) => {
-                      const opt = WIDGET_OPTIONS.find(w => w.id === id);
-                      if (!opt) return null;
-                      const filtered = cpEvents.filter((e: any) => opt.eventTypes.includes(e.type));
-                      const total = filtered.length;
-                      const pending = filtered.filter((e: any) => e.state === "new" || e.state === "pending").length;
-                      const remediated = filtered.filter((e: any) => ["remediated", "closed", "done"].includes(e.state)).length;
-                      const remediatedPct = total > 0 ? Math.round((remediated / total) * 100) : 0;
-                      const pendingPct = total > 0 ? Math.round((pending / total) * 100) : 0;
-                      return (
-                        <div
-                          key={id}
-                          className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-                          style={{ animationDelay: `${idx * 60}ms` }}
-                        >
-                          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-indigo-50 to-transparent dark:from-indigo-900/20 dark:to-transparent border-b border-[var(--card-border)]">
-                            <div>
-                              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Checkpoint</p>
-                              <p className="text-sm font-bold text-[var(--foreground)]">{opt.label}</p>
-                            </div>
-                            <button
-                              onClick={() => removeCpWidget(id)}
-                              className={`w-6 h-6 flex items-center justify-center rounded-lg text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                              title="Remove widget"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                          <div className="p-4">
-                            {cpEventsLoading ? (
-                              <div className="flex items-center justify-center py-4">
-                                <div className="animate-spin w-5 h-5 border-4 border-indigo-500 border-t-transparent rounded-full" />
-                              </div>
-                            ) : total === 0 ? (
-                              <p className="text-xs text-[var(--muted)] text-center py-3">No events</p>
-                            ) : (
-                              <>
-                                <div className="flex items-end justify-between mb-3">
-                                  <span className="text-3xl font-bold text-[var(--foreground)]">{total}</span>
-                                  <span className="text-[10px] text-[var(--muted)] font-medium uppercase tracking-wide pb-1">Total Events</span>
-                                </div>
-                                <div className="space-y-2">
-                                  <div>
-                                    <div className="flex justify-between text-xs mb-1">
-                                      <span className="text-green-600 dark:text-green-400 font-medium">Remediated</span>
-                                      <span className="font-semibold text-[var(--foreground)]">{remediatedPct}%</span>
-                                    </div>
-                                    <div className="w-full bg-[var(--muted-bg)] rounded-full h-1.5 overflow-hidden">
-                                      <div className="h-1.5 rounded-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-700" style={{ width: `${remediatedPct}%` }} />
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div className="flex justify-between text-xs mb-1">
-                                      <span className="text-red-500 font-medium">Pending</span>
-                                      <span className="font-semibold text-[var(--foreground)]">{pendingPct}%</span>
-                                    </div>
-                                    <div className="w-full bg-[var(--muted-bg)] rounded-full h-1.5 overflow-hidden">
-                                      <div className="h-1.5 rounded-full bg-gradient-to-r from-red-400 to-red-600 transition-all duration-700" style={{ width: `${pendingPct}%` }} />
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="mt-3 flex flex-wrap gap-1">
-                                  {opt.eventTypes.map(t => (
-                                    <span key={t} className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 capitalize">
-                                      {t.replace(/_/g, " ")}
-                                    </span>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        }
-
-        if (section === "sentinelone") {
-          return (
-            <div
-              key="sentinelone"
-              onDragOver={(e) => { e.preventDefault(); moveSection("sentinelone"); }}
-              className="group/sec"
-            >
-              {/* -- SENTINELONE ------------------------------------------------------- */}
-              <div className="pt-4 pb-2">
-                {/* Section header � ONLY this bar is draggable */}
-                <div
-                  draggable
-                  onDragStart={(e) => { e.stopPropagation(); dragSectionRef.current = "sentinelone"; }}
-                  onDragEnd={(e) => { e.stopPropagation(); dragSectionRef.current = null; }}
-                  className="flex items-center gap-3 mb-3 cursor-move select-none rounded-xl px-3 py-2 transition-all duration-200 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
-                >
-                  <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 flex-shrink-0 shadow-sm" />
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Endpoint</p>
-                      <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">SentinelOne</h2>
-                    </div>
-                  </div>
-                  <div className="flex-1 h-px bg-gradient-to-r from-emerald-200 via-[var(--card-border)] to-transparent dark:from-emerald-800" />
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleS1Sync(); }}
-                    disabled={s1Syncing}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 disabled:opacity-50 transition-all duration-150 flex-shrink-0 border border-emerald-200 dark:border-emerald-700"
-                  >
-                    {s1Syncing ? (
-                      <><div className="animate-spin w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full" />Syncing�</>
-                    ) : (
-                      <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Sync</>
-                    )}
-                  </button>
-                </div>
-
-                {s1SyncMsg && (
-                  <div
-                    className={`mb-3 px-3 py-2 rounded-lg text-xs border flex items-center gap-2 ${s1SyncMsg.ok
-                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
-                      : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
-                      }`}
-                  >
-                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={s1SyncMsg.ok ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} /></svg>
-                    {s1SyncMsg.text}
-                  </div>
-                )}
-              </div>
-
-              {/* GRID */}
+          if (section === "checkpoint") {
+            return (
               <div
-                ref={containerRef}
-                className="w-full min-w-0"
-                onDragStart={(e) => e.stopPropagation()}
+                key="checkpoint"
+                onDragOver={(e) => { e.preventDefault(); moveSection("checkpoint"); }}
+                className="group/sec"
               >
-                <ResponsiveGridLayout
-                  className="layout"
-                  layouts={s1Layouts}
-                  breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-                  cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-                  rowHeight={10}
-                  width={containerWidth}
-                  onLayoutChange={handleLayoutChange}
-                  compactor={noCompactor}
-                  dragConfig={{ enabled: isEditMode, handle: ".drag-handle" }}
-                  resizeConfig={{ enabled: isEditMode, handles: ["s", "w", "e", "n", "sw", "nw", "se", "ne"] }}
-                  margin={[10, 10]}
+                {/* -- CHECKPOINT HARMONY ------------------------------------------------ */}
+                <div className="pt-4 pb-5">
+                  {/* Section header */}
+                  <div
+                    draggable={isEditMode}
+                    onDragStart={(e) => { if (!isEditMode) return; e.stopPropagation(); dragSectionRef.current = "checkpoint"; }}
+                    onDragEnd={(e) => { e.stopPropagation(); dragSectionRef.current = null; }}
+                    className={`flex items-center gap-3 mb-4 select-none rounded-xl px-3 py-2 transition-all duration-200 ${isEditMode ? "cursor-move bg-indigo-50/50 dark:bg-indigo-900/10 border border-dashed border-indigo-300 dark:border-indigo-700" : "cursor-default"}`}
+                  >
+                    <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-indigo-400 to-indigo-600 flex-shrink-0 shadow-sm" />
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-none">Security</p>
+                        <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">Checkpoint Harmony</h2>
+                      </div>
+                    </div>
+                    <div className="flex-1 h-px bg-gradient-to-r from-indigo-200 via-[var(--card-border)] to-transparent dark:from-indigo-800" />
+                    {isEditMode && <span className="text-[10px] text-indigo-400 font-medium flex items-center gap-1 flex-shrink-0"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>drag</span>}
+                  </div>
+
+                  {/* -- Individual Checkpoint Widget Cards -- */}
+                  {visibleCpWidgets.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-indigo-200 dark:border-indigo-800 rounded-2xl bg-indigo-50/30 dark:bg-indigo-900/10">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
+                        <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-semibold text-[var(--foreground)] mb-1">No widgets added yet</p>
+                      <p className="text-xs text-[var(--muted)]">Click "Add Widget" ? Checkpoint to add cards here</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {visibleCpWidgets.map((id, idx) => {
+                        const opt = WIDGET_OPTIONS.find(w => w.id === id);
+                        if (!opt) return null;
+                        const filtered = cpEvents.filter((e: any) => opt.eventTypes.includes(e.type));
+                        const total = filtered.length;
+                        const pending = filtered.filter((e: any) => e.state === "new" || e.state === "pending").length;
+                        const remediated = filtered.filter((e: any) => ["remediated", "closed", "done"].includes(e.state)).length;
+                        const remediatedPct = total > 0 ? Math.round((remediated / total) * 100) : 0;
+                        const pendingPct = total > 0 ? Math.round((pending / total) * 100) : 0;
+                        return (
+                          <div
+                            key={id}
+                            className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                            style={{ animationDelay: `${idx * 60}ms` }}
+                          >
+                            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-indigo-50 to-transparent dark:from-indigo-900/20 dark:to-transparent border-b border-[var(--card-border)]">
+                              <div>
+                                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Checkpoint</p>
+                                <p className="text-sm font-bold text-[var(--foreground)]">{opt.label}</p>
+                              </div>
+                              <button
+                                onClick={() => removeCpWidget(id)}
+                                className={`w-6 h-6 flex items-center justify-center rounded-lg text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                                title="Remove widget"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                            <div className="p-4">
+                              {cpEventsLoading ? (
+                                <div className="flex items-center justify-center py-4">
+                                  <div className="animate-spin w-5 h-5 border-4 border-indigo-500 border-t-transparent rounded-full" />
+                                </div>
+                              ) : total === 0 ? (
+                                <p className="text-xs text-[var(--muted)] text-center py-3">No events</p>
+                              ) : (
+                                <>
+                                  <div className="flex items-end justify-between mb-3">
+                                    <span className="text-3xl font-bold text-[var(--foreground)]">{total}</span>
+                                    <span className="text-[10px] text-[var(--muted)] font-medium uppercase tracking-wide pb-1">Total Events</span>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div>
+                                      <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-green-600 dark:text-green-400 font-medium">Remediated</span>
+                                        <span className="font-semibold text-[var(--foreground)]">{remediatedPct}%</span>
+                                      </div>
+                                      <div className="w-full bg-[var(--muted-bg)] rounded-full h-1.5 overflow-hidden">
+                                        <div className="h-1.5 rounded-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-700" style={{ width: `${remediatedPct}%` }} />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-red-500 font-medium">Pending</span>
+                                        <span className="font-semibold text-[var(--foreground)]">{pendingPct}%</span>
+                                      </div>
+                                      <div className="w-full bg-[var(--muted-bg)] rounded-full h-1.5 overflow-hidden">
+                                        <div className="h-1.5 rounded-full bg-gradient-to-r from-red-400 to-red-600 transition-all duration-700" style={{ width: `${pendingPct}%` }} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap gap-1">
+                                    {opt.eventTypes.map(t => (
+                                      <span key={t} className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 capitalize">
+                                        {t.replace(/_/g, " ")}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          if (section === "sentinelone") {
+            return (
+              <div
+                key="sentinelone"
+                onDragOver={(e) => { e.preventDefault(); moveSection("sentinelone"); }}
+                className="group/sec"
+              >
+                {/* -- SENTINELONE ------------------------------------------------------- */}
+                <div className="pt-4 pb-2">
+                  {/* Section header � ONLY this bar is draggable */}
+                  <div
+                    draggable
+                    onDragStart={(e) => { e.stopPropagation(); dragSectionRef.current = "sentinelone"; }}
+                    onDragEnd={(e) => { e.stopPropagation(); dragSectionRef.current = null; }}
+                    className="flex items-center gap-3 mb-3 cursor-move select-none rounded-xl px-3 py-2 transition-all duration-200 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
+                  >
+                    <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 flex-shrink-0 shadow-sm" />
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Endpoint</p>
+                        <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">SentinelOne</h2>
+                      </div>
+                    </div>
+                    <div className="flex-1 h-px bg-gradient-to-r from-emerald-200 via-[var(--card-border)] to-transparent dark:from-emerald-800" />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleS1Sync(); }}
+                      disabled={s1Syncing}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 disabled:opacity-50 transition-all duration-150 flex-shrink-0 border border-emerald-200 dark:border-emerald-700"
+                    >
+                      {s1Syncing ? (
+                        <><div className="animate-spin w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full" />Syncing�</>
+                      ) : (
+                        <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Sync</>
+                      )}
+                    </button>
+                  </div>
+
+                  {s1SyncMsg && (
+                    <div
+                      className={`mb-3 px-3 py-2 rounded-lg text-xs border flex items-center gap-2 ${s1SyncMsg.ok
+                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
+                        : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
+                        }`}
+                    >
+                      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={s1SyncMsg.ok ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} /></svg>
+                      {s1SyncMsg.text}
+                    </div>
+                  )}
+                </div>
+
+                {/* GRID */}
+                <div
+                  ref={containerRef}
+                  className="w-full min-w-0"
+                  onDragStart={(e) => e.stopPropagation()}
                 >
-                  {/* -- Mitigation Status � always rendered, hidden via style when not visible -- */}
-                  <div key="s1-mitigation" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-mitigation") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                  <ResponsiveGridLayout
+                    className="layout"
+                    layouts={s1Layouts}
+                    breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+                    cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+                    rowHeight={10}
+                    width={containerWidth}
+                    onLayoutChange={handleLayoutChange}
+                    compactor={noCompactor}
+                    dragConfig={{ enabled: isEditMode, handle: ".drag-handle" }}
+                    resizeConfig={{ enabled: isEditMode, handles: ["s", "w", "e", "n", "sw", "nw", "se", "ne"] }}
+                    margin={[10, 10]}
+                  >
+                    {/* -- Mitigation Status � always rendered, hidden via style when not visible -- */}
+                    <div key="s1-mitigation" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-mitigation") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
                       <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
                         <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Mitigation Status</p></div>
                         <div className="flex gap-1 items-center">
@@ -1459,22 +1465,22 @@ export default function DashboardPage() {
                           )
                         }
                       </div>
-                  </div>
-
-                  {/* -- Threat Severity � always rendered, hidden via style when not visible -- */}
-                  <div key="s1-severity" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-severity") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
-                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Threat Severity</p></div>
-                      <button
-                        onClick={e => { e.stopPropagation(); removeS1Widget("s1-severity"); }}
-                        className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                        title="Remove widget"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
                     </div>
+
+                    {/* -- Threat Severity � always rendered, hidden via style when not visible -- */}
+                    <div key="s1-severity" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-severity") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Threat Severity</p></div>
+                        <button
+                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-severity"); }}
+                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          title="Remove widget"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                       <div className="flex-1 min-h-0 p-3">
                         {s1Loading ? <Spin /> : s1Error ? <Err msg={s1Error} /> : severityData.length === 0 ? <Empty msg="No severity data" /> : (
                           <ResponsiveContainer width="100%" height="100%">
@@ -1488,22 +1494,22 @@ export default function DashboardPage() {
                           </ResponsiveContainer>
                         )}
                       </div>
-                  </div>
-
-                  {/* -- Recent Threats � always rendered, hidden via style when not visible -- */}
-                  <div key="s1-threats" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-threats") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
-                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Recent Threats</p></div>
-                      <button
-                        onClick={e => { e.stopPropagation(); removeS1Widget("s1-threats"); }}
-                        className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                        title="Remove widget"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
                     </div>
+
+                    {/* -- Recent Threats � always rendered, hidden via style when not visible -- */}
+                    <div key="s1-threats" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-threats") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Recent Threats</p></div>
+                        <button
+                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-threats"); }}
+                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          title="Remove widget"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                       <div className="flex-1 min-h-0 overflow-auto">
                         {s1Loading ? <Spin /> : s1Error ? <Err msg={s1Error} /> : recentThreats.length === 0 ? <Empty msg="No threats found" /> : (
                           <table className="w-full text-xs">
@@ -1530,26 +1536,26 @@ export default function DashboardPage() {
                           </table>
                         )}
                       </div>
-                  </div>
-
-                  {/* -- Agent Status � always rendered, hidden via style when not visible -- */}
-                  <div key="s1-agents" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-agents") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
-                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Agent Status</p></div>
-                      <div className="flex gap-1 items-center">
-                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">{activeAgents} Active</span>
-                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{inactiveAgents} Inactive</span>
-                        <button
-                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-agents"); }}
-                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                          title="Remove widget"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
                     </div>
+
+                    {/* -- Agent Status � always rendered, hidden via style when not visible -- */}
+                    <div key="s1-agents" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-agents") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Agent Status</p></div>
+                        <div className="flex gap-1 items-center">
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">{activeAgents} Active</span>
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{inactiveAgents} Inactive</span>
+                          <button
+                            onClick={e => { e.stopPropagation(); removeS1Widget("s1-agents"); }}
+                            className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                            title="Remove widget"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
                       <div className="flex-1 min-h-0 overflow-auto">
                         {agentLoading ? <Spin /> : agentError ? <Err msg={agentError} /> : agentData.length === 0 ? <Empty msg="No agent info found" /> : (
                           <table className="w-full text-xs">
@@ -1569,267 +1575,267 @@ export default function DashboardPage() {
                           </table>
                         )}
                       </div>
-                  </div>
+                    </div>
 
-                  {/* -- Application Agents � always present in RGL, hidden until added -- */}
-                  <div key="s1-app-agent" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-app-agent") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
-                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application Agents</p></div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{appAgentData.length} records</span>
-                        <div className="flex items-center gap-0.5 bg-[var(--card-bg)] rounded-lg p-0.5 border border-[var(--card-border)]">
-                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-agent": { ...(p["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }), viewMode: "graph" } })); }}
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${s1WidgetConfigs["s1-app-agent"]?.viewMode === "graph" ? "bg-emerald-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Graph</button>
-                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-agent": { ...(p["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }), viewMode: "table" } })); }}
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${(s1WidgetConfigs["s1-app-agent"]?.viewMode ?? "table") === "table" ? "bg-blue-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Table</button>
+                    {/* -- Application Agents � always present in RGL, hidden until added -- */}
+                    <div key="s1-app-agent" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-app-agent") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application Agents</p></div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{appAgentData.length} records</span>
+                          <div className="flex items-center gap-0.5 bg-[var(--card-bg)] rounded-lg p-0.5 border border-[var(--card-border)]">
+                            <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-agent": { ...(p["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }), viewMode: "graph" } })); }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${s1WidgetConfigs["s1-app-agent"]?.viewMode === "graph" ? "bg-emerald-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Graph</button>
+                            <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-agent": { ...(p["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }), viewMode: "table" } })); }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${(s1WidgetConfigs["s1-app-agent"]?.viewMode ?? "table") === "table" ? "bg-blue-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Table</button>
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); removeS1Widget("s1-app-agent"); }}
+                            className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                            title="Remove widget"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
-                        <button
-                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-app-agent"); }}
-                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                          title="Remove widget"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-hidden">
+                        <S1ConfigWidget data={appAgentData} loading={appAgentLoading}
+                          config={s1WidgetConfigs["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }}
+                          onConfigChange={patch => setS1WidgetConfigs(p => ({ ...p, "s1-app-agent": { ...(p["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }), ...patch } }))}
+                          accentColor="#a855f7" />
                       </div>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-hidden">
-                      <S1ConfigWidget data={appAgentData} loading={appAgentLoading}
-                        config={s1WidgetConfigs["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }}
-                        onConfigChange={patch => setS1WidgetConfigs(p => ({ ...p, "s1-app-agent": { ...(p["s1-app-agent"] ?? { id: "s1-app-agent", viewMode: "table" }), ...patch } }))}
-                        accentColor="#a855f7" />
-                    </div>
-                  </div>
 
-                  {/* -- Application CVEs � always present in RGL, hidden until added -- */}
-                  <div key="s1-app-cve" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-app-cve") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
-                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application CVEs</p></div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{appCveData.length} CVEs</span>
-                        <div className="flex items-center gap-0.5 bg-[var(--card-bg)] rounded-lg p-0.5 border border-[var(--card-border)]">
-                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-cve": { ...(p["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }), viewMode: "graph" } })); }}
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${s1WidgetConfigs["s1-app-cve"]?.viewMode === "graph" ? "bg-emerald-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Graph</button>
-                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-cve": { ...(p["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }), viewMode: "table" } })); }}
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${(s1WidgetConfigs["s1-app-cve"]?.viewMode ?? "table") === "table" ? "bg-blue-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Table</button>
+                    {/* -- Application CVEs � always present in RGL, hidden until added -- */}
+                    <div key="s1-app-cve" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-app-cve") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Application CVEs</p></div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{appCveData.length} CVEs</span>
+                          <div className="flex items-center gap-0.5 bg-[var(--card-bg)] rounded-lg p-0.5 border border-[var(--card-border)]">
+                            <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-cve": { ...(p["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }), viewMode: "graph" } })); }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${s1WidgetConfigs["s1-app-cve"]?.viewMode === "graph" ? "bg-emerald-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Graph</button>
+                            <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-app-cve": { ...(p["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }), viewMode: "table" } })); }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${(s1WidgetConfigs["s1-app-cve"]?.viewMode ?? "table") === "table" ? "bg-blue-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Table</button>
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); removeS1Widget("s1-app-cve"); }}
+                            className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                            title="Remove widget"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
-                        <button
-                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-app-cve"); }}
-                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                          title="Remove widget"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-hidden">
+                        <S1ConfigWidget data={appCveData} loading={appCveLoading}
+                          config={s1WidgetConfigs["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }}
+                          onConfigChange={patch => setS1WidgetConfigs(p => ({ ...p, "s1-app-cve": { ...(p["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }), ...patch } }))}
+                          accentColor="#ef4444" />
                       </div>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-hidden">
-                      <S1ConfigWidget data={appCveData} loading={appCveLoading}
-                        config={s1WidgetConfigs["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }}
-                        onConfigChange={patch => setS1WidgetConfigs(p => ({ ...p, "s1-app-cve": { ...(p["s1-app-cve"] ?? { id: "s1-app-cve", viewMode: "table" }), ...patch } }))}
-                        accentColor="#ef4444" />
-                    </div>
-                  </div>
 
-                  {/* -- Device Control � always present in RGL, hidden until added -- */}
-                  <div key="s1-device-control" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-device-control") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
-                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Device Control</p></div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{deviceControlData.length} events</span>
-                        <div className="flex items-center gap-0.5 bg-[var(--card-bg)] rounded-lg p-0.5 border border-[var(--card-border)]">
-                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-device-control": { ...(p["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }), viewMode: "graph" } })); }}
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${s1WidgetConfigs["s1-device-control"]?.viewMode === "graph" ? "bg-emerald-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Graph</button>
-                          <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-device-control": { ...(p["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }), viewMode: "table" } })); }}
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${(s1WidgetConfigs["s1-device-control"]?.viewMode ?? "table") === "table" ? "bg-blue-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Table</button>
+                    {/* -- Device Control � always present in RGL, hidden until added -- */}
+                    <div key="s1-device-control" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-device-control") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">Device Control</p></div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{deviceControlData.length} events</span>
+                          <div className="flex items-center gap-0.5 bg-[var(--card-bg)] rounded-lg p-0.5 border border-[var(--card-border)]">
+                            <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-device-control": { ...(p["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }), viewMode: "graph" } })); }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${s1WidgetConfigs["s1-device-control"]?.viewMode === "graph" ? "bg-emerald-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Graph</button>
+                            <button onClick={e => { e.stopPropagation(); setS1WidgetConfigs(p => ({ ...p, "s1-device-control": { ...(p["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }), viewMode: "table" } })); }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${(s1WidgetConfigs["s1-device-control"]?.viewMode ?? "table") === "table" ? "bg-blue-500 text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>Table</button>
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); removeS1Widget("s1-device-control"); }}
+                            className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                            title="Remove widget"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
-                        <button
-                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-device-control"); }}
-                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                          title="Remove widget"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-hidden">
+                        <S1ConfigWidget data={deviceControlData} loading={deviceControlLoading}
+                          config={s1WidgetConfigs["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }}
+                          onConfigChange={patch => setS1WidgetConfigs(p => ({ ...p, "s1-device-control": { ...(p["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }), ...patch } }))}
+                          accentColor="#6366f1" />
                       </div>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-hidden">
-                      <S1ConfigWidget data={deviceControlData} loading={deviceControlLoading}
-                        config={s1WidgetConfigs["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }}
-                        onConfigChange={patch => setS1WidgetConfigs(p => ({ ...p, "s1-device-control": { ...(p["s1-device-control"] ?? { id: "s1-device-control", viewMode: "table" }), ...patch } }))}
-                        accentColor="#6366f1" />
-                    </div>
-                  </div>
 
-                  {/* -- RSS Feed � always present in RGL, hidden until added -- */}
-                  <div key="s1-rss" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-rss") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
-                    <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
-                      <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">RSS Feed</p></div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{rssData.length} items</span>
-                        <button
-                          onClick={e => { e.stopPropagation(); removeS1Widget("s1-rss"); }}
-                          className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                          title="Remove widget"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                    {/* -- RSS Feed � always present in RGL, hidden until added -- */}
+                    <div key="s1-rss" className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm flex flex-col overflow-hidden" style={visibleS1Widgets.includes("s1-rss") ? {} : { visibility: "hidden", pointerEvents: "none" }}>
+                      <div className="drag-handle cursor-grab active:cursor-grabbing bg-[var(--muted-bg)] border-b border-[var(--card-border)] px-4 py-3 flex items-center justify-between flex-shrink-0 select-none">
+                        <div><p className="text-xs text-[var(--muted)] font-medium">SentinelOne</p><p className="text-sm font-bold text-[var(--foreground)]">RSS Feed</p></div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{rssData.length} items</span>
+                          <button
+                            onClick={e => { e.stopPropagation(); removeS1Widget("s1-rss"); }}
+                            className={`w-5 h-5 flex items-center justify-center rounded text-[var(--muted)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors ml-1 flex-shrink-0 ${isEditMode ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                            title="Remove widget"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex-1 min-h-0 overflow-auto">
-                      {rssLoading ? <Spin /> : rssData.length === 0 ? <Empty msg="No RSS data � sync first" /> : (
-                        <div className="divide-y divide-[var(--card-border)]">
-                          {rssData.slice(0, 20).map((item: any, i: number) => {
-                            const title = item.title || item.name || "Untitled";
-                            const desc = item.summary || item.description || item.content || "";
-                            const link = item.link || item.url || item.guid || null;
-                            const date = item.published || item.pubDate || item.date || "";
-                            // Extract thumbnail � match same logic as RssFeedPreview in picker
-                            const enclosureLink = Array.isArray(item?.links)
-                              ? item.links.find((l: any) => l?.rel === "enclosure")?.href ?? null
-                              : null;
-                            const image =
-                              enclosureLink ??
-                              item?.media_thumbnail ?? item?.enclosure?.url ?? item?.image?.url ??
-                              item?.["media:thumbnail"]?.url ?? item?.thumbnail ?? null;
-                            const displayDate = date
-                              ? new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                              : "";
-                            return (
-                              <div key={i} className="flex items-start gap-3 px-3 py-2.5 hover:bg-[var(--muted-bg)] transition-colors group">
-                                {/* Thumbnail */}
-                                <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-[var(--muted-bg)] flex items-center justify-center border border-[var(--card-border)]">
-                                  {image ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={image} alt="" className="w-full h-full object-cover"
-                                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                                  ) : (
-                                    <svg className="w-5 h-5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9" />
+                      <div className="flex-1 min-h-0 overflow-auto">
+                        {rssLoading ? <Spin /> : rssData.length === 0 ? <Empty msg="No RSS data � sync first" /> : (
+                          <div className="divide-y divide-[var(--card-border)]">
+                            {rssData.slice(0, 20).map((item: any, i: number) => {
+                              const title = item.title || item.name || "Untitled";
+                              const desc = item.summary || item.description || item.content || "";
+                              const link = item.link || item.url || item.guid || null;
+                              const date = item.published || item.pubDate || item.date || "";
+                              // Extract thumbnail � match same logic as RssFeedPreview in picker
+                              const enclosureLink = Array.isArray(item?.links)
+                                ? item.links.find((l: any) => l?.rel === "enclosure")?.href ?? null
+                                : null;
+                              const image =
+                                enclosureLink ??
+                                item?.media_thumbnail ?? item?.enclosure?.url ?? item?.image?.url ??
+                                item?.["media:thumbnail"]?.url ?? item?.thumbnail ?? null;
+                              const displayDate = date
+                                ? new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                : "";
+                              return (
+                                <div key={i} className="flex items-start gap-3 px-3 py-2.5 hover:bg-[var(--muted-bg)] transition-colors group">
+                                  {/* Thumbnail */}
+                                  <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-[var(--muted-bg)] flex items-center justify-center border border-[var(--card-border)]">
+                                    {image ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={image} alt="" className="w-full h-full object-cover"
+                                        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                    ) : (
+                                      <svg className="w-5 h-5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  {/* Text */}
+                                  <div className="flex-1 min-w-0">
+                                    {link ? (
+                                      <a href={link} target="_blank" rel="noopener noreferrer"
+                                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline line-clamp-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 block leading-snug">
+                                        {title}
+                                      </a>
+                                    ) : (
+                                      <p className="text-xs font-semibold text-[var(--foreground)] line-clamp-2 leading-snug">{title}</p>
+                                    )}
+                                    {desc && <p className="text-[10px] text-[var(--muted)] mt-0.5 line-clamp-1">{String(desc).replace(/<[^>]+>/g, "")}</p>}
+                                    {displayDate && <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium">{displayDate}</p>}
+                                  </div>
+                                  {link && (
+                                    <svg className="w-3 h-3 text-[var(--muted)] group-hover:text-emerald-500 shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                     </svg>
                                   )}
                                 </div>
-                                {/* Text */}
-                                <div className="flex-1 min-w-0">
-                                  {link ? (
-                                    <a href={link} target="_blank" rel="noopener noreferrer"
-                                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline line-clamp-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 block leading-snug">
-                                      {title}
-                                    </a>
-                                  ) : (
-                                    <p className="text-xs font-semibold text-[var(--foreground)] line-clamp-2 leading-snug">{title}</p>
-                                  )}
-                                  {desc && <p className="text-[10px] text-[var(--muted)] mt-0.5 line-clamp-1">{String(desc).replace(/<[^>]+>/g, "")}</p>}
-                                  {displayDate && <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium">{displayDate}</p>}
-                                </div>
-                                {link && (
-                                  <svg className="w-3 h-3 text-[var(--muted)] group-hover:text-emerald-500 shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                  </svg>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </ResponsiveGridLayout>
+                </div>
+              </div>
+            );
+          }
+
+          /* --------- FIREWALL --------- */
+          return (
+            <div
+              key="firewall"
+              onDragOver={(e) => { e.preventDefault(); moveSection("firewall"); }}
+              className="group/sec"
+            >
+              {/* -- FIREWALL ---------------------------------------------------------- */}
+              <div className="pt-4 pb-5 relative z-10">
+                {/* Section header � ONLY this bar is draggable */}
+                <div
+                  draggable
+                  onDragStart={(e) => { e.stopPropagation(); dragSectionRef.current = "firewall"; }}
+                  onDragEnd={(e) => { e.stopPropagation(); dragSectionRef.current = null; }}
+                  className="flex items-center gap-3 mb-3 cursor-move select-none rounded-xl px-3 py-2 transition-all duration-200 hover:bg-orange-50/50 dark:hover:bg-orange-900/10"
+                >
+                  <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-orange-400 to-orange-600 flex-shrink-0 shadow-sm" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest leading-none">Network</p>
+                      <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">Palo Alto Firewall</h2>
                     </div>
                   </div>
+                  <div className="flex-1 h-px bg-gradient-to-r from-orange-200 via-[var(--card-border)] to-transparent dark:from-orange-800" />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleCollect(); }}
+                    disabled={collecting}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/30 disabled:opacity-50 transition-all duration-150 flex-shrink-0 border border-orange-200 dark:border-orange-700"
+                  >
+                    {collecting ? (
+                      <><div className="animate-spin w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full" />Collecting�</>
+                    ) : (
+                      <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Collect</>
+                    )}
+                  </button>
+                </div>
+                {collectMsg && (
+                  <div
+                    className={`mb-3 px-3 py-2 rounded-lg text-xs border flex items-center gap-2 ${collectMsg.ok
+                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
+                      : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
+                      }`}
+                  >
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={collectMsg.ok ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} /></svg>
+                    {collectMsg.text}
+                  </div>
+                )}
+              </div>
 
+              {/* GRID */}
+              <div
+                className="w-full min-w-0"
+                onDragStart={(e) => e.stopPropagation()}
+              >
+                <ResponsiveGridLayout
+                  className="layout"
+                  layouts={fwLayouts}
+                  breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+                  cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+                  rowHeight={10}
+                  width={containerWidth}
+                  onLayoutChange={handleLayoutChange}
+                  compactor={noCompactor}
+                  dragConfig={{ enabled: isEditMode, handle: ".drag-handle" }}
+                  resizeConfig={{ enabled: isEditMode, handles: ["s", "w", "e", "n", "sw", "nw", "se", "ne"] }}
+                  margin={[10, 10]}
+                >
+                  {/* Saved dynamic widgets */}
+                  {fwWidgets.map(widget => (
+                    <div key={widget.id}
+                      className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm overflow-hidden">
+                      <FwGraphWidget widget={widget} onDelete={handleDeleteWidget} isEditMode={isEditMode} />
+                    </div>
+                  ))}
                 </ResponsiveGridLayout>
               </div>
             </div>
           );
-        }
-
-        /* --------- FIREWALL --------- */
-        return (
-          <div
-            key="firewall"
-            onDragOver={(e) => { e.preventDefault(); moveSection("firewall"); }}
-            className="group/sec"
-          >
-            {/* -- FIREWALL ---------------------------------------------------------- */}
-            <div className="pt-4 pb-5 relative z-10">
-              {/* Section header � ONLY this bar is draggable */}
-              <div
-                draggable
-                onDragStart={(e) => { e.stopPropagation(); dragSectionRef.current = "firewall"; }}
-                onDragEnd={(e) => { e.stopPropagation(); dragSectionRef.current = null; }}
-                className="flex items-center gap-3 mb-3 cursor-move select-none rounded-xl px-3 py-2 transition-all duration-200 hover:bg-orange-50/50 dark:hover:bg-orange-900/10"
-              >
-                <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-orange-400 to-orange-600 flex-shrink-0 shadow-sm" />
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest leading-none">Network</p>
-                    <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">Palo Alto Firewall</h2>
-                  </div>
-                </div>
-                <div className="flex-1 h-px bg-gradient-to-r from-orange-200 via-[var(--card-border)] to-transparent dark:from-orange-800" />
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleCollect(); }}
-                  disabled={collecting}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/30 disabled:opacity-50 transition-all duration-150 flex-shrink-0 border border-orange-200 dark:border-orange-700"
-                >
-                  {collecting ? (
-                    <><div className="animate-spin w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full" />Collecting�</>
-                  ) : (
-                    <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Collect</>
-                  )}
-                </button>
-              </div>
-              {collectMsg && (
-                <div
-                  className={`mb-3 px-3 py-2 rounded-lg text-xs border flex items-center gap-2 ${collectMsg.ok
-                    ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
-                    : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
-                    }`}
-                >
-                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={collectMsg.ok ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} /></svg>
-                  {collectMsg.text}
-                </div>
-              )}
-            </div>
-
-            {/* GRID */}
-            <div
-              className="w-full min-w-0"
-              onDragStart={(e) => e.stopPropagation()}
-            >
-              <ResponsiveGridLayout
-                className="layout"
-                layouts={fwLayouts}
-                breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-                cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-                rowHeight={10}
-                width={containerWidth}
-                onLayoutChange={handleLayoutChange}
-                compactor={noCompactor}
-                dragConfig={{ enabled: isEditMode, handle: ".drag-handle" }}
-                resizeConfig={{ enabled: isEditMode, handles: ["s", "w", "e", "n", "sw", "nw", "se", "ne"] }}
-                margin={[10, 10]}
-              >
-                {/* Saved dynamic widgets */}
-                {fwWidgets.map(widget => (
-                  <div key={widget.id}
-                    className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-sm overflow-hidden">
-                    <FwGraphWidget widget={widget} onDelete={handleDeleteWidget} isEditMode={isEditMode} />
-                  </div>
-                ))}
-              </ResponsiveGridLayout>
-            </div>
-          </div>
-        );
-      })}
+        })}
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from "recharts";
 
 // ─── Widget definitions ───────────────────────────────────────────────────────
@@ -17,14 +17,14 @@ export interface S1WidgetDef {
 }
 
 export const S1_WIDGETS: S1WidgetDef[] = [
-  { id: "s1-mitigation",    label: "Mitigation Status",    description: "Threat mitigation state breakdown",                             dbRoute: "/api/sentinelone/db/threats",           color: "emerald", statOnly: true },
-  { id: "s1-severity",      label: "Threat Severity",      description: "Horizontal bar of threat confidence levels",                    dbRoute: "/api/sentinelone/db/threats",           color: "red",     statOnly: true },
-  { id: "s1-threats",       label: "Recent Threats",       description: "Scrollable table of the 15 most recent threats",               dbRoute: "/api/sentinelone/db/threats",           color: "orange" },
-  { id: "s1-agents",        label: "Agent Status",         description: "Table of all agents with active / inactive status",            dbRoute: "/api/sentinelone/db/agents",            color: "blue" },
-  { id: "s1-app-agent",     label: "Application Agents",   description: "Application risk agents from s1_application_agent table",      dbRoute: "/api/sentinelone/db/application-agent", color: "purple" },
-  { id: "s1-app-cve",       label: "Application CVEs",     description: "Application vulnerability CVEs from s1_application_cve",       dbRoute: "/api/sentinelone/db/application-cve",   color: "red" },
-  { id: "s1-device-control",label: "Device Control",       description: "Device control events from s1_device_control table",           dbRoute: "/api/sentinelone/db/device-control",    color: "indigo" },
-  { id: "s1-rss",           label: "RSS Feed",             description: "SentinelOne RSS security news from s1_rss table",              dbRoute: "/api/sentinelone/db/rss",               color: "emerald", rssOnly: true },
+  { id: "s1-mitigation", label: "Mitigation Status", description: "Threat mitigation state breakdown", dbRoute: "/api/sentinelone/db/threats", color: "emerald", statOnly: true },
+  { id: "s1-severity", label: "Threat Severity", description: "Horizontal bar of threat confidence levels", dbRoute: "/api/sentinelone/db/threats", color: "red", statOnly: true },
+  { id: "s1-threats", label: "Recent Threats", description: "Scrollable table of the 15 most recent threats", dbRoute: "/api/sentinelone/db/threats", color: "orange" },
+  { id: "s1-agents", label: "Agent Status", description: "Table of all agents with active / inactive status", dbRoute: "/api/sentinelone/db/agents", color: "blue" },
+  { id: "s1-app-agent", label: "Application Agents", description: "Application risk agents from s1_application_agent table", dbRoute: "/api/sentinelone/db/application-agent", color: "purple" },
+  { id: "s1-app-cve", label: "Application CVEs", description: "Application vulnerability CVEs from s1_application_cve", dbRoute: "/api/sentinelone/db/application-cve", color: "red" },
+  { id: "s1-device-control", label: "Device Control", description: "Device control events from s1_device_control table", dbRoute: "/api/sentinelone/db/device-control", color: "indigo" },
+  { id: "s1-rss", label: "RSS Feed", description: "SentinelOne RSS security news from s1_rss table", dbRoute: "/api/sentinelone/db/rss", color: "emerald", rssOnly: true },
 ];
 
 // ─── Colours ──────────────────────────────────────────────────────────────────
@@ -34,11 +34,11 @@ const ACCENT: Record<S1WidgetDef["color"], string> = {
 };
 const BADGE_COLOR: Record<S1WidgetDef["color"], string> = {
   emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  red:     "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-  orange:  "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
-  blue:    "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  purple:  "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-  indigo:  "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+  red: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  orange: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
+  blue: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  purple: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  indigo: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
 };
 
 // ─── Exported config types (passed to dashboard on Add) ───────────────────────
@@ -50,12 +50,15 @@ export interface S1WidgetConfig {
   viewMode: S1WidgetViewMode;
   // graph config
   xKey?: string;
+  yKey?: string;
   dateFrom?: string;
   dateTo?: string;
   // table config
   dateKey?: string;
   visibleCols?: string[];
 }
+
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const toISODate = (d: Date) => d.toISOString().split("T")[0];
@@ -85,8 +88,31 @@ export function collectKeys(data: unknown[]): string[] {
 }
 
 function extractDate(record: unknown): string {
-  const paths = ["synced_at","createdAt","created_at","date","threatInfo.createdAt","threatInfo.createdDate","createdDate","updatedAt","updated_at"];
-  for (const p of paths) { const val = getPath(record, p); if (val) return String(val); }
+  const paths = [
+    "synced_at",
+    "createdAt",
+    "created_at",
+    "date",
+
+    // ✅ SentinelOne CVE date fields
+    "publishedDate",
+    "detectionDate",
+    "detectedDate",
+    "markedDate",
+    "lastScanDate",
+
+    "threatInfo.createdAt",
+    "threatInfo.createdDate",
+    "createdDate",
+    "updatedAt",
+    "updated_at",
+  ];
+
+  for (const p of paths) {
+    const val = getPath(record, p);
+    if (val) return String(val);
+  }
+
   return "";
 }
 
@@ -115,22 +141,41 @@ function normaliseXVal(raw: unknown): string {
 }
 
 export function buildChartData(
-  data: unknown[], xKey: string, dateFrom: string, dateTo: string,
+  data: unknown[],
+  xKey: string,
+  yKey: string,
+  dateFrom: string,
+  dateTo: string
 ): { x: string; y: number }[] {
-  const sample = data.slice(0, 10).map(r => getPath(r, xKey)).filter(v => v != null);
-  const xIsDate = sample.length > 0 && sample.every(v => looksLikeDate(v));
-  const filtered = data.filter(r => {
-    const dateStr = xIsDate ? toYMD(getPath(r, xKey)) : extractDate(r).slice(0, 10);
+  const filtered = data.filter((r) => {
+    const dateStr = toYMD(extractDate(r));
+
+    // ✅ If no date found, don't remove record
+    if (!dateStr) return true;
+
     return (!dateFrom || dateStr >= dateFrom) && (!dateTo || dateStr <= dateTo);
   });
+
   const buckets: Record<string, number> = {};
-  filtered.forEach(r => {
-    const xVal = normaliseXVal(getPath(r, xKey));
-    buckets[xVal] = (buckets[xVal] ?? 0) + 1;
+
+  filtered.forEach((r) => {
+    const xVal = String(getPath(r, xKey) ?? "—");
+
+    if (yKey === "count") {
+      buckets[xVal] = (buckets[xVal] ?? 0) + 1;
+    } else {
+      const yVal = String(getPath(r, yKey) ?? "—");
+
+      // ✅ CVE + EndpointName group count
+      const key = `${xVal} | ${yVal}`;
+      buckets[key] = (buckets[key] ?? 0) + 1;
+    }
   });
-  const entries = Object.entries(buckets).map(([x, y]) => ({ x, y }));
-  if (xIsDate) return entries.sort((a, b) => a.x.localeCompare(b.x));
-  return entries.sort((a, b) => b.y - a.y).slice(0, 20);
+
+  return Object.entries(buckets)
+    .map(([x, y]) => ({ x, y }))
+    .sort((a, b) => b.y - a.y)
+    .slice(0, 30);
 }
 
 export function labelFor(key: string): string {
@@ -270,27 +315,148 @@ interface GraphPreviewProps {
   loading: boolean;
   color: string;
   xKey: string;
+  yKey: string;
   onXKeyChange: (k: string) => void;
+  onYKeyChange: (k: string) => void;
   dateFrom: string;
   dateTo: string;
   onDateFromChange: (v: string) => void;
   onDateToChange: (v: string) => void;
 }
 
-function GraphPreview({ data, loading, color, xKey, onXKeyChange, dateFrom, dateTo, onDateFromChange, onDateToChange }: GraphPreviewProps) {
-  const allKeys = useMemo(() => collectKeys(data), [data]);
-  const dateKeys = useMemo(() =>
-    allKeys.filter(k => {
-      const samples = data.slice(0, 10).map(r => getPath(r, k)).filter(Boolean);
-      return samples.length > 0 && samples.some(v => looksLikeDate(v));
-    }), [allKeys, data]);
+function CustomTooltip({
+  active,
+  payload,
+  label,
+  data,
+  xKey,
+  yKey,
+  dateFrom,
+  dateTo,
+}: any) {
+  if (!active || !payload?.length) return null;
 
-  const bothSet = xKey !== "";
+  const mainX = String(label).includes(" | ")
+    ? String(label).split(" | ")[0]
+    : String(label);
+
+  const breakdown: Record<string, number> = {};
+
+  data.forEach((r: any) => {
+    const dateStr = toYMD(extractDate(r));
+
+    if (dateStr && dateFrom && dateStr < dateFrom) return;
+    if (dateStr && dateTo && dateStr > dateTo) return;
+
+    const rowX = String(getPath(r, xKey) ?? "—");
+    if (rowX !== mainX) return;
+
+    const key =
+      yKey === "count" ? "Records" : String(getPath(r, yKey) ?? "—");
+
+    breakdown[key] = (breakdown[key] ?? 0) + 1;
+  });
+
+  const total = Object.values(breakdown).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+
+  return (
+    <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 shadow-lg min-w-[220px]">
+      <p className="text-xs font-bold text-[var(--foreground)] mb-1">
+        {mainX}
+      </p>
+
+      <div className="flex justify-between text-xs">
+        <span className="text-[var(--muted)]">Total Count</span>
+        <span className="font-bold text-[var(--foreground)]">{total}</span>
+      </div>
+
+      <div className="mt-2 pt-2 border-t border-[var(--card-border)] space-y-1 max-h-36 overflow-auto">
+        {Object.entries(breakdown).map(([name, count]) => (
+          <div key={name} className="flex justify-between gap-4 text-xs">
+            <span className="text-[var(--foreground)] truncate">{name}</span>
+            <span className="font-bold text-emerald-600">{count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getSeverityColor(severity: string) {
+  const s = severity?.toLowerCase();
+
+  if (s === "low") return "#D1F25E";      // light blue
+  if (s === "medium") return "#FFAC1C";   // light yellow
+  if (s === "high") return "#EE4B2B";     // light red
+  if (s === "critical") return "#eee123"
+
+
+  return "#d1d5db"; // default gray
+}
+
+function GraphPreview({
+  data,
+  loading,
+  color,
+  xKey,
+  yKey,
+  onXKeyChange,
+  onYKeyChange,
+  dateFrom,
+  dateTo,
+  onDateFromChange,
+  onDateToChange,
+}: GraphPreviewProps) {
+  const allKeys = useMemo(() => collectKeys(data), [data]);
+  console.log("allKeys", allKeys);
+  const yAxisOptions = useMemo(() => {
+    return ["count", "endpointName"].filter(
+      (k) => k === "count" || allKeys.includes(k)
+    );
+  }, [allKeys]);
+  const dateKeys = useMemo(
+    () =>
+      allKeys.filter((k) => {
+        // Always include cveId
+        if (k === "cveId") return true;
+
+        const samples = data
+          .slice(0, 10)
+          .map((r) => getPath(r, k))
+          .filter(Boolean);
+
+        return (
+          samples.length > 0 &&
+          samples.some((v) => looksLikeDate(v))
+        );
+      }),
+    [allKeys, data]
+  );
+
+  const bothSet = xKey !== "" && yKey !== "";
+
   const chartData = useMemo(() => {
     if (!bothSet) return [];
-    return buildChartData(data, xKey, dateFrom, dateTo);
-  }, [data, xKey, dateFrom, dateTo, bothSet]);
+    return buildChartData(data, xKey, yKey, dateFrom, dateTo);
+  }, [data, xKey, yKey, dateFrom, dateTo, bothSet]);
 
+  const severityByCve = useMemo(() => {
+    const map: Record<string, string> = {};
+
+    data.forEach((r: any) => {
+      const cve = String(getPath(r, "cveId") ?? "");
+      const severity = String(getPath(r, "severity") ?? "");
+
+      if (cve && severity && !map[cve]) {
+        map[cve] = severity;
+      }
+    });
+
+    return map;
+  }, [data]);
   if (loading) return <div className="h-48 bg-[var(--muted-bg)] rounded-xl animate-pulse" />;
 
   return (
@@ -313,9 +479,22 @@ function GraphPreview({ data, loading, color, xKey, onXKeyChange, dateFrom, date
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide">Y-Axis (value)</label>
-            <div className="flex items-center h-[30px] px-2 rounded-lg border border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20">
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Count (records per day)</span>
-            </div>
+            {/* <div className="flex items-center h-[30px] px-2 rounded-lg border border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20">
+              
+            </div> */}
+            <select
+              value={yKey}
+              onChange={(e) => onYKeyChange(e.target.value)}
+              className={`w-full appearance-none pl-2 pr-7 py-1.5 rounded-lg border bg-[var(--card-bg)] text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-emerald-500 ${yKey ? "border-emerald-500 font-semibold" : "border-[var(--card-border)]"
+                }`}
+            >
+              <option value="">— select value —</option>
+              {yAxisOptions.map((k) => (
+                <option key={k} value={k}>
+                  {k === "count" ? "Count" : labelFor(k)}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -337,8 +516,30 @@ function GraphPreview({ data, loading, color, xKey, onXKeyChange, dateFrom, date
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--card-border)" vertical={false} />
                 <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--muted)" }} interval={0} tickFormatter={v => String(v).slice(0, 12)} />
                 <YAxis tick={{ fontSize: 9, fill: "var(--muted)" }} allowDecimals={false} />
-                <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--card-border)", background: "var(--card-bg)" }} labelStyle={{ color: "var(--foreground)", fontWeight: 600 }} formatter={(v) => [v ?? 0, "Count"]} />
-                <Bar dataKey="y" fill={color} radius={[3, 3, 0, 0]} maxBarSize={40} />
+                {/* <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--card-border)", background: "var(--card-bg)" }} labelStyle={{ color: "var(--foreground)", fontWeight: 600 }} formatter={(v) => [v ?? 0, "Count"]} /> */}
+                <Tooltip
+                  content={
+                    <CustomTooltip
+                      data={data}
+                      xKey={xKey}
+                      yKey={yKey}
+                      dateFrom={dateFrom}
+                      dateTo={dateTo}
+                    />
+                  }
+                />
+                <Bar dataKey="y" radius={[3, 3, 0, 0]} maxBarSize={40}>
+                  {chartData.map((entry: any, index) => {
+                    const cve = String(entry.x).includes(" | ")
+                      ? String(entry.x).split(" | ")[0]
+                      : String(entry.x);
+
+                    const severity = severityByCve[cve] ?? "";
+                    const fillColor = getSeverityColor(severity);
+
+                    return <Cell key={`cell-${index}`} fill={fillColor} />;
+                  })}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>}
         </div>
@@ -367,7 +568,7 @@ function TablePreview({ data, loading, dateKey, onDateKeyChange, visibleCols, on
     allKeys.filter(k => { const s = data.slice(0, 10).map(r => getPath(r, k)).filter(Boolean); return s.length > 0 && s.some(v => looksLikeDate(v)); }),
     [allKeys, data]);
   const defaultDateKey = useMemo(() => {
-    const preferred = ["synced_at","createdAt","created_at","date","published","pubDate","publishedDate","threatInfo.createdAt","threatInfo.createdDate","createdDate","detectionDate","markedDate","lastScanDate"];
+    const preferred = ["synced_at", "createdAt", "created_at", "date", "published", "pubDate", "publishedDate", "threatInfo.createdAt", "threatInfo.createdDate", "createdDate", "detectionDate", "markedDate", "lastScanDate"];
     return preferred.find(k => dateKeys.includes(k)) ?? dateKeys[0] ?? allKeys[0] ?? "";
   }, [dateKeys, allKeys]);
 
@@ -478,16 +679,19 @@ export default function SentinelOneWidgetPicker({ selected, onToggle, onAdd, onC
   // ── Per-widget config — all lifted here so Add Widget captures everything ──
   const [widgetViewModes, setWidgetViewModes] = useState<Record<string, S1WidgetViewMode>>({});
   // graph config per widget
-  const [widgetXKey, setWidgetXKey]       = useState<Record<string, string>>({});
+  const [widgetXKey, setWidgetXKey] = useState<Record<string, string>>({});
   const [widgetDateFrom, setWidgetDateFrom] = useState<Record<string, string>>({});
-  const [widgetDateTo, setWidgetDateTo]   = useState<Record<string, string>>({});
+  const [widgetDateTo, setWidgetDateTo] = useState<Record<string, string>>({});
   // table config per widget
-  const [widgetDateKey, setWidgetDateKey]         = useState<Record<string, string>>({});
+  const [widgetDateKey, setWidgetDateKey] = useState<Record<string, string>>({});
   const [widgetVisibleCols, setWidgetVisibleCols] = useState<Record<string, string[]>>({});
-
+  const [widgetYKey, setWidgetYKey] = useState<Record<string, string>>({});
   const activeWidget = S1_WIDGETS.find(w => w.id === activeId)!;
   const isSelected = selected.includes(activeId);
+  const yKey = widgetYKey[activeId] ?? "count";
 
+  const setYKey = (v: string) =>
+    setWidgetYKey((p) => ({ ...p, [activeId]: v }));
   function defaultViewMode(w: S1WidgetDef): S1WidgetViewMode {
     if (w.statOnly) return "stat";
     if (w.rssOnly) return "rss";
@@ -501,27 +705,29 @@ export default function SentinelOneWidgetPicker({ selected, onToggle, onAdd, onC
   }
 
   // Helpers to get/set per-active-widget config
-  const xKey     = widgetXKey[activeId] ?? "";
-  const dateFrom = widgetDateFrom[activeId] ?? defaultFrom;
-  const dateTo   = widgetDateTo[activeId] ?? today;
-  const dateKey  = widgetDateKey[activeId] ?? "";
-  const visCols  = widgetVisibleCols[activeId] ?? [];
+  const xKey = widgetXKey[activeId] ?? "";
 
-  const setXKey     = (v: string)    => setWidgetXKey(p => ({ ...p, [activeId]: v }));
-  const setDateFrom = (v: string)    => setWidgetDateFrom(p => ({ ...p, [activeId]: v }));
-  const setDateTo   = (v: string)    => setWidgetDateTo(p => ({ ...p, [activeId]: v }));
-  const setDateKey  = (v: string)    => setWidgetDateKey(p => ({ ...p, [activeId]: v }));
-  const setVisCols  = (v: string[])  => setWidgetVisibleCols(p => ({ ...p, [activeId]: v }));
+  const dateFrom = widgetDateFrom[activeId] ?? defaultFrom;
+  const dateTo = widgetDateTo[activeId] ?? today;
+  const dateKey = widgetDateKey[activeId] ?? "";
+  const visCols = widgetVisibleCols[activeId] ?? [];
+
+  const setXKey = (v: string) => setWidgetXKey(p => ({ ...p, [activeId]: v }));
+  const setDateFrom = (v: string) => setWidgetDateFrom(p => ({ ...p, [activeId]: v }));
+  const setDateTo = (v: string) => setWidgetDateTo(p => ({ ...p, [activeId]: v }));
+  const setDateKey = (v: string) => setWidgetDateKey(p => ({ ...p, [activeId]: v }));
+  const setVisCols = (v: string[]) => setWidgetVisibleCols(p => ({ ...p, [activeId]: v }));
 
   // Build full config for every selected widget to pass to dashboard
   function buildConfigs(ids: string[]): S1WidgetConfig[] {
     return ids.map(id => ({
       id,
       viewMode: getViewMode(id),
-      xKey:        widgetXKey[id],
-      dateFrom:    widgetDateFrom[id] ?? defaultFrom,
-      dateTo:      widgetDateTo[id] ?? today,
-      dateKey:     widgetDateKey[id],
+      xKey: widgetXKey[id],
+      yKey: widgetYKey[id] ?? "count",
+      dateFrom: widgetDateFrom[id] ?? defaultFrom,
+      dateTo: widgetDateTo[id] ?? today,
+      dateKey: widgetDateKey[id],
       visibleCols: widgetVisibleCols[id],
     }));
   }
@@ -615,18 +821,25 @@ export default function SentinelOneWidgetPicker({ selected, onToggle, onAdd, onC
             ? <RssFeedPreview data={previewData} loading={previewLoading} />
             : viewMode === "graph"
               ? <GraphPreview
-                  data={previewData} loading={previewLoading} color={ACCENT[activeWidget.color]}
-                  xKey={xKey} onXKeyChange={setXKey}
-                  dateFrom={dateFrom} dateTo={dateTo}
-                  onDateFromChange={setDateFrom} onDateToChange={setDateTo}
-                />
+                data={previewData}
+                loading={previewLoading}
+                color={ACCENT[activeWidget.color]}
+                xKey={xKey}
+                yKey={yKey}
+                onXKeyChange={setXKey}
+                onYKeyChange={setYKey}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+              />
               : <TablePreview
-                  data={previewData} loading={previewLoading}
-                  dateKey={dateKey} onDateKeyChange={setDateKey}
-                  visibleCols={visCols} onVisibleColsChange={setVisCols}
-                  dateFrom={dateFrom} dateTo={dateTo}
-                  onDateFromChange={setDateFrom} onDateToChange={setDateTo}
-                />
+                data={previewData} loading={previewLoading}
+                dateKey={dateKey} onDateKeyChange={setDateKey}
+                visibleCols={visCols} onVisibleColsChange={setVisCols}
+                dateFrom={dateFrom} dateTo={dateTo}
+                onDateFromChange={setDateFrom} onDateToChange={setDateTo}
+              />
         }
       </div>
 
