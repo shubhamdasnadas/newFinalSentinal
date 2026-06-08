@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
+import ZohoDashboard from "../components/ZohoDashboard";
 type SectionKey = "checkpoint" | "sentinelone" | "firewall";
 // --- Constants ----------------------------------------------------------------
 const FIREWALL_REPORTS = [
@@ -39,6 +40,8 @@ const FIREWALL_REPORTS = [
 const COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#6366f1"];
 
 const S1_EXTRA_IDS = new Set(["s1-app-agent", "s1-app-cve", "s1-device-control", "s1-rss"]);
+const GRID_BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
+const GRID_COLS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
 
 // --- Layout types -------------------------------------------------------------
 interface BoxLayout { i: string; x: number; y: number; w: number; h: number; }
@@ -57,6 +60,57 @@ const DEFAULT_BOXES: BoxLayout[] = [
   // Firewall widget
   { i: "fw-explorer", x: 0, y: 0, w: 7, h: 44 },
 ];
+
+function clampLayoutItem<T extends BoxLayout>(item: T, cols: number): T {
+  const w = Math.max(1, Math.min(Number(item.w) || 1, cols));
+  const x = Math.max(0, Math.min(Number(item.x) || 0, cols - w));
+  return {
+    ...item,
+    x,
+    y: Math.max(0, Number(item.y) || 0),
+    w,
+    h: Math.max(1, Number(item.h) || 1),
+  };
+}
+
+function normalizeSavedBoxes(saved: BoxLayout[] = []): BoxLayout[] {
+  return DEFAULT_BOXES.map((def) => {
+    const savedBox = saved.find((box) => box.i === def.i);
+    return clampLayoutItem({ ...def, ...(savedBox || {}) }, GRID_COLS.lg);
+  });
+}
+
+function stackLayout<T extends LayoutItem>(items: T[], cols: number): T[] {
+  let y = 0;
+  return items.map((item) => {
+    const h = Math.max(1, Number(item.h) || 1);
+    const next = {
+      ...item,
+      x: 0,
+      y,
+      w: cols,
+      h,
+    };
+    y += h;
+    return next;
+  });
+}
+
+function makeResponsiveLayouts<T extends LayoutItem>(items: T[]) {
+  return {
+    lg: items.map((item) => clampGridItem(item, GRID_COLS.lg)),
+    md: items.map((item) => clampGridItem(item, GRID_COLS.md)),
+    sm: stackLayout(items, GRID_COLS.sm),
+    xs: stackLayout(items, GRID_COLS.xs),
+    xxs: stackLayout(items, GRID_COLS.xxs),
+  };
+}
+
+function clampGridItem<T extends LayoutItem>(item: T, cols: number): T {
+  const w = Math.max(Number(item.minW) || 1, Math.min(Number(item.w) || 1, cols));
+  const x = Math.max(0, Math.min(Number(item.x) || 0, cols - w));
+  return { ...item, x, w };
+}
 
 // --- Helper UI ----------------------------------------------------------------
 function Spin() {
@@ -246,6 +300,7 @@ export default function DashboardPage() {
   // -- Grid layout --------------------------------------------------------------
   const [boxes, setBoxes] = useState<BoxLayout[]>(DEFAULT_BOXES);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
+  const [activeGridBreakpoint, setActiveGridBreakpoint] = useState<keyof typeof GRID_COLS>("lg");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -392,7 +447,7 @@ export default function DashboardPage() {
       .then(r => r.json())
       .then(d => {
         const saved = Array.isArray(d.layout?.pgboxes) ? d.layout.pgboxes : [];
-        const merged = DEFAULT_BOXES.map(def => saved.find((b: BoxLayout) => b.i === def.i) ?? def);
+        const merged = normalizeSavedBoxes(saved);
         setBoxes(merged);
         // Restore saved section order if valid
         const savedOrder = d.layout?.sectionOrder;
@@ -643,42 +698,38 @@ export default function DashboardPage() {
     ...widgetItems,
   ];
 
-  const s1Layouts = {
-    lg: s1AllItems,
-    md: s1AllItems,
-    sm: s1AllItems,
-    xs: s1AllItems,
-    xxs: s1AllItems,
-  };
-
-  const fwLayouts = {
-    lg: fwItems,
-    md: fwItems,
-    sm: fwItems,
-    xs: fwItems,
-    xxs: fwItems,
-  };
+  const s1Layouts = makeResponsiveLayouts(s1AllItems);
+  const fwLayouts = makeResponsiveLayouts(fwItems);
 
   // -- Handlers ------------------------------------------------------------------
-  const handleLayoutChange = (newLayout: Layout, _allLayouts: Partial<Record<string, Layout>>) => {
+  const handleLayoutChange = (newLayout: Layout, allLayouts: Partial<Record<keyof typeof GRID_COLS, Layout>>) => {
+    if (!isEditMode) return;
+
+    const layoutToSave = activeGridBreakpoint === "lg"
+      ? newLayout
+      : allLayouts.lg ?? [];
+
+    if (layoutToSave.length === 0) return;
+
     // Update static S1/FW-explorer boxes
     const nextBoxes = boxes.map(box => {
-      const l = newLayout.find(n => n.i === box.i);
+      const l = layoutToSave.find(n => n.i === box.i);
       if (!l) return box;
       // Never overwrite the stored size of a hidden S1 widget
       if (box.i.startsWith("s1-") && !visibleS1Widgets.includes(box.i)) return box;
-      return { ...box, x: l.x, y: l.y, w: l.w, h: l.h };
+      return clampLayoutItem({ ...box, x: l.x, y: l.y, w: l.w, h: l.h }, GRID_COLS.lg);
     });
     // Update dynamic firewall widgets and persist each to DB
     setFwWidgets(prev => prev.map(widget => {
-      const l = newLayout.find(n => n.i === widget.id);
+      const l = layoutToSave.find(n => n.i === widget.id);
       if (!l) return widget;
+      const nextWidget = clampLayoutItem({ ...widget, x: l.x, y: l.y, w: l.w, h: l.h }, GRID_COLS.lg);
       // Persist resize/move to DB immediately
       fetch(`/api/firewall/widgets/${widget.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ x: l.x, y: l.y, w: l.w, h: l.h }),
+        body: JSON.stringify({ x: nextWidget.x, y: nextWidget.y, w: nextWidget.w, h: nextWidget.h }),
       }).catch(console.error);
-      return { ...widget, x: l.x, y: l.y, w: l.w, h: l.h };
+      return nextWidget;
     }));
     setBoxes(nextBoxes);
     persistLayout(nextBoxes);
@@ -1325,6 +1376,10 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </div>
+
+                <div>
+                  <ZohoDashboard />
+                </div>
               </div>
             );
           }
@@ -1393,11 +1448,12 @@ export default function DashboardPage() {
                   <ResponsiveGridLayout
                     className="layout"
                     layouts={s1Layouts}
-                    breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-                    cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+                    breakpoints={GRID_BREAKPOINTS}
+                    cols={GRID_COLS}
                     rowHeight={10}
                     width={containerWidth}
                     onLayoutChange={handleLayoutChange}
+                    onBreakpointChange={(breakpoint) => setActiveGridBreakpoint(breakpoint as keyof typeof GRID_COLS)}
                     compactor={noCompactor}
                     dragConfig={{ enabled: isEditMode, handle: ".drag-handle" }}
                     resizeConfig={{ enabled: isEditMode, handles: ["s", "w", "e", "n", "sw", "nw", "se", "ne"] }}
@@ -1814,11 +1870,12 @@ export default function DashboardPage() {
                 <ResponsiveGridLayout
                   className="layout"
                   layouts={fwLayouts}
-                  breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-                  cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+                  breakpoints={GRID_BREAKPOINTS}
+                  cols={GRID_COLS}
                   rowHeight={10}
                   width={containerWidth}
                   onLayoutChange={handleLayoutChange}
+                  onBreakpointChange={(breakpoint) => setActiveGridBreakpoint(breakpoint as keyof typeof GRID_COLS)}
                   compactor={noCompactor}
                   dragConfig={{ enabled: isEditMode, handle: ".drag-handle" }}
                   resizeConfig={{ enabled: isEditMode, handles: ["s", "w", "e", "n", "sw", "nw", "se", "ne"] }}

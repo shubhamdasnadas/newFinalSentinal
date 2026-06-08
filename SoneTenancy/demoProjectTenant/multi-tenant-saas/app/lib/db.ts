@@ -272,6 +272,15 @@ CREATE INDEX IF NOT EXISTS idx_checkpoint_events_type         ON checkpoint_even
 CREATE INDEX IF NOT EXISTS idx_checkpoint_events_state        ON checkpoint_events(state);
 CREATE INDEX IF NOT EXISTS idx_checkpoint_events_event_created ON checkpoint_events(event_created);
 
+CREATE TABLE IF NOT EXISTS zohotable (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  data_name  TEXT        NOT NULL UNIQUE,
+  data       JSONB       NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_zohotable_data_name ON zohotable(data_name);
+
 CREATE TABLE IF NOT EXISTS dashboard_layout (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   user_email TEXT        NOT NULL UNIQUE,
