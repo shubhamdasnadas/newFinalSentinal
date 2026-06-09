@@ -164,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Allowed pages: super admin gets everything, org users get what's in their token
   const allowedPages: string[] = isSuperAdmin
-    ? ["dashboard", "organizations", "members", "projects", "reports", "analytics", "billing", "notifications", "support", "settings"]
+    ? ["dashboard", "organizations", "members", "projects", "reports", "analytics", "billing", "notifications", "support", "settings", "zohoOne"] // example full access
     : user?.allowedPages || [];
 
   // canAccess: super admin always yes; org users check their allowedPages

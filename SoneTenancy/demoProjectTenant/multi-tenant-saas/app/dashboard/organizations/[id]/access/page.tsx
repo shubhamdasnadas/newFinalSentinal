@@ -17,6 +17,7 @@ const PAGE_META: Record<string, { label: string; desc: string; icon: string }> =
   support:       { label: "Support",        desc: "Support tickets and help desk",                 icon: "🎧" },
   settings:      { label: "Settings",       desc: "Account and organization settings",             icon: "⚙️" },
   checkpoint:      { label: "Check Point",       desc: "Account and organization settings",             icon: "⚙️" },
+  zohoOne:      { label: "Zoho One",       desc: "Zoho One integration and management",             icon: "⚙️" },
 };
 
 export default function OrgAccessPage() {
