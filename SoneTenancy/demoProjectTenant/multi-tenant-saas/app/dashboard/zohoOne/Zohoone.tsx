@@ -2,6 +2,10 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import TicketVolcanoGraph from "./TicketVolcanoGraph";
+import Circlemember from "./Circlemember";
+import Mttrcard from "./Mttrcard";
+import Funneldiagram from "./Funneldiagram";
+
 
 type ZohoTicket = {
   id?: string | number;
@@ -196,11 +200,10 @@ function TicketTracking({ ticket }: { ticket: ZohoTicket }) {
               className={`flex ${index === 0 ? "items-start" : index === 1 ? "items-center" : "items-end"} flex-col`}
             >
               <span
-                className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-500 ${
-                  step.complete
-                    ? "border-indigo-600 bg-indigo-600 text-white shadow-[0_0_0_6px_rgba(79,70,229,0.12)]"
-                    : "border-indigo-500 bg-[var(--card-bg)] text-indigo-600"
-                }`}
+                className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-500 ${step.complete
+                  ? "border-indigo-600 bg-indigo-600 text-white shadow-[0_0_0_6px_rgba(79,70,229,0.12)]"
+                  : "border-indigo-500 bg-[var(--card-bg)] text-indigo-600"
+                  }`}
               >
                 {step.complete ? (
                   <span className="text-sm leading-none">✓</span>
@@ -210,9 +213,8 @@ function TicketTracking({ ticket }: { ticket: ZohoTicket }) {
               </span>
 
               <div
-                className={`mt-4 max-w-[180px] text-sm ${
-                  index === 0 ? "text-left" : index === 1 ? "text-center" : "text-right"
-                }`}
+                className={`mt-4 max-w-[180px] text-sm ${index === 0 ? "text-left" : index === 1 ? "text-center" : "text-right"
+                  }`}
               >
                 <div className="text-xs font-bold uppercase text-[var(--muted)]">{step.label}</div>
                 <div className="mt-1 font-medium text-[var(--foreground)]">{step.value}</div>
@@ -426,11 +428,10 @@ function TicketListCard({ tickets, loading }: { tickets: ZohoTicket[]; loading: 
                   <button
                     type="button"
                     onClick={() => goToPage(pageNumber)}
-                    className={`h-9 min-w-9 rounded-md border border-[var(--card-border)] px-3 font-semibold ${
-                      safePage === pageNumber
-                        ? "bg-indigo-600 text-white"
-                        : "text-[var(--foreground)]"
-                    }`}
+                    className={`h-9 min-w-9 rounded-md border border-[var(--card-border)] px-3 font-semibold ${safePage === pageNumber
+                      ? "bg-indigo-600 text-white"
+                      : "text-[var(--foreground)]"
+                      }`}
                   >
                     {pageNumber}
                   </button>
@@ -744,7 +745,13 @@ const Zohoone = () => {
 
       <TicketListCard tickets={tickets} loading={loading} />
       <TicketVolcanoGraph tickets={tickets} />
-
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Circlemember tickets={tickets} />
+        <Mttrcard tickets={tickets} />
+      </div>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Funneldiagram />
+      </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm">
           <div className="mb-5">
@@ -777,13 +784,12 @@ const Zohoone = () => {
                     <button
                       type="button"
                       onClick={() => setActiveDay((current) => (current === row.day ? null : row.day))}
-                      className={`rounded px-1.5 py-0.5 text-sm font-bold transition-colors ${
-                        isSelected
-                          ? "bg-indigo-600 text-white"
-                          : count
-                            ? "text-[var(--foreground)] hover:bg-[var(--card-bg)]"
-                            : "text-[var(--foreground)]"
-                      }`}
+                      className={`rounded px-1.5 py-0.5 text-sm font-bold transition-colors ${isSelected
+                        ? "bg-indigo-600 text-white"
+                        : count
+                          ? "text-[var(--foreground)] hover:bg-[var(--card-bg)]"
+                          : "text-[var(--foreground)]"
+                        }`}
                     >
                       {count}
                     </button>

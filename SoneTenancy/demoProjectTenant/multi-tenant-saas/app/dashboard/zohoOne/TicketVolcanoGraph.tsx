@@ -57,7 +57,9 @@ const getTicketHours = (ticket: VolcanoTicket) => {
   return (endDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
 };
 
-export default function TicketVolcanoGraph({ tickets }: { tickets: VolcanoTicket[] }) {
+export default function
+
+  TicketVolcanoGraph({ tickets }: { tickets: VolcanoTicket[] }) {
   const graphBuckets = useMemo(() => {
     const counts = buckets.map((bucket) => ({ ...bucket, count: 0 }));
 
