@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import TicketVolcanoGraph from "./TicketVolcanoGraph";
 
 type ZohoTicket = {
   id?: string | number;
@@ -15,6 +16,10 @@ type ZohoTicket = {
   closedAt?: string;
   closeTime?: string;
   closedDate?: string;
+  customerResponseTime?: string | number;
+  customer_response_time?: string | number;
+  customer_responseTime?: string | number;
+  responseTime?: string | number;
   department?: {
     name?: string;
   };
@@ -66,6 +71,13 @@ const getClosedAt = (ticket: ZohoTicket) =>
   normalizeText(ticket.closedAt) ||
   normalizeText(ticket.closeTime) ||
   normalizeText(ticket.closedDate);
+
+const getCustomerResponseTime = (ticket: ZohoTicket) =>
+  normalizeText(ticket.customerResponseTime) ||
+  normalizeText(ticket.customer_response_time) ||
+  normalizeText(ticket.customer_responseTime) ||
+  normalizeText(ticket.responseTime) ||
+  "-";
 
 const getAssigneeName = (ticket: ZohoTicket) => {
   const firstName = normalizeText(ticket.assignee?.firstName);
@@ -148,6 +160,306 @@ const formatResolutionTime = (ticket: ZohoTicket) => {
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
 };
+
+const pageSize = 10;
+
+const getTicketKey = (ticket: ZohoTicket, index: number) =>
+  normalizeText(ticket.id) || normalizeText(ticket.ticketNumber) || normalizeText(ticket.ticket_no) || String(index);
+
+function TicketTracking({ ticket }: { ticket: ZohoTicket }) {
+  const createdTime = formatDateTime(getCreatedAt(ticket));
+  const customerResponseTime = getCustomerResponseTime(ticket);
+  const closedTime = formatDateTime(getClosedAt(ticket));
+  const hasCreatedTime = createdTime !== "-";
+  const hasCustomerResponseTime = customerResponseTime !== "-";
+  const hasClosedTime = closedTime !== "-";
+  const progress = hasClosedTime ? 100 : hasCustomerResponseTime ? 50 : hasCreatedTime ? 8 : 0;
+  const steps = [
+    { label: "Created Time", value: createdTime, complete: hasCreatedTime },
+    { label: "Customer Response Time", value: customerResponseTime, complete: hasCustomerResponseTime },
+    { label: "Closed Time", value: closedTime, complete: hasClosedTime },
+  ];
+
+  return (
+    <div className="rounded-md bg-[var(--card-bg)] px-4 py-5">
+      <div className="relative mx-1 pb-2">
+        <div className="absolute left-0 right-0 top-4 h-2 rounded-full bg-slate-200" />
+        <div
+          className="absolute left-0 top-4 h-2 rounded-full bg-indigo-600 transition-all duration-700 ease-out"
+          style={{ width: `${progress}%` }}
+        />
+
+        <div className="relative grid grid-cols-3 gap-3">
+          {steps.map((step, index) => (
+            <div
+              key={step.label}
+              className={`flex ${index === 0 ? "items-start" : index === 1 ? "items-center" : "items-end"} flex-col`}
+            >
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-500 ${
+                  step.complete
+                    ? "border-indigo-600 bg-indigo-600 text-white shadow-[0_0_0_6px_rgba(79,70,229,0.12)]"
+                    : "border-indigo-500 bg-[var(--card-bg)] text-indigo-600"
+                }`}
+              >
+                {step.complete ? (
+                  <span className="text-sm leading-none">✓</span>
+                ) : (
+                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-indigo-500" />
+                )}
+              </span>
+
+              <div
+                className={`mt-4 max-w-[180px] text-sm ${
+                  index === 0 ? "text-left" : index === 1 ? "text-center" : "text-right"
+                }`}
+              >
+                <div className="text-xs font-bold uppercase text-[var(--muted)]">{step.label}</div>
+                <div className="mt-1 font-medium text-[var(--foreground)]">{step.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TicketListCard({ tickets, loading }: { tickets: ZohoTicket[]; loading: boolean }) {
+  const [assignee, setAssignee] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [page, setPage] = useState(1);
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
+  const assignees = useMemo(
+    () =>
+      Array.from(new Set(tickets.map(getAssigneeName)))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b)),
+    [tickets]
+  );
+
+  const filteredTickets = useMemo(() => {
+    const from = fromDate ? new Date(`${fromDate}T00:00:00`) : null;
+    const to = toDate ? new Date(`${toDate}T23:59:59`) : null;
+
+    return tickets.filter((ticket) => {
+      if (assignee !== "all" && getAssigneeName(ticket) !== assignee) return false;
+
+      const createdAt = getCreatedAt(ticket);
+      const createdDate = new Date(createdAt);
+
+      if ((from || to) && (!createdAt || Number.isNaN(createdDate.getTime()))) return false;
+      if (from && createdDate < from) return false;
+      if (to && createdDate > to) return false;
+
+      return true;
+    });
+  }, [assignee, fromDate, tickets, toDate]);
+
+  const pageCount = Math.max(Math.ceil(filteredTickets.length / pageSize), 1);
+  const safePage = Math.min(page, pageCount);
+  const startIndex = filteredTickets.length ? (safePage - 1) * pageSize : 0;
+  const endIndex = Math.min(startIndex + pageSize, filteredTickets.length);
+  const visibleTickets = filteredTickets.slice(startIndex, endIndex);
+
+  const paginationPages = Array.from({ length: pageCount }, (_, index) => index + 1).filter(
+    (pageNumber) =>
+      pageNumber === 1 ||
+      pageNumber === pageCount ||
+      Math.abs(pageNumber - safePage) <= 1
+  );
+
+  const goToPage = (pageNumber: number) => setPage(Math.min(Math.max(pageNumber, 1), pageCount));
+  const resetTable = () => {
+    setPage(1);
+    setExpandedRows({});
+  };
+
+  return (
+    <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-[var(--foreground)]">Ticket Details</h2>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[620px]">
+          <label className="text-sm font-medium text-[var(--foreground)]">
+            <span className="mb-1 block">Assignee</span>
+            <select
+              value={assignee}
+              onChange={(event) => {
+                setAssignee(event.target.value);
+                resetTable();
+              }}
+              className="h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--muted-bg)] px-3 text-sm text-[var(--foreground)] outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">All assignees</option>
+              {assignees.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="text-sm font-medium text-[var(--foreground)]">
+            <span className="mb-1 block">From</span>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(event) => {
+                setFromDate(event.target.value);
+                resetTable();
+              }}
+              className="h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--muted-bg)] px-3 text-sm text-[var(--foreground)] outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </label>
+
+          <label className="text-sm font-medium text-[var(--foreground)]">
+            <span className="mb-1 block">To</span>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(event) => {
+                setToDate(event.target.value);
+                resetTable();
+              }}
+              className="h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--muted-bg)] px-3 text-sm text-[var(--foreground)] outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--muted-bg)]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] border-collapse text-sm">
+            <thead>
+              <tr className="bg-[var(--card-bg)]">
+                <th className="w-12 px-4 py-3 text-left font-semibold text-[var(--foreground)]" />
+                <th className="px-4 py-3 text-left font-semibold text-[var(--foreground)]">Subject</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleTickets.map((ticket, index) => {
+                const key = getTicketKey(ticket, startIndex + index);
+                const isExpanded = Boolean(expandedRows[key]);
+
+                return (
+                  <React.Fragment key={key}>
+                    <tr className="border-t border-[var(--card-border)]">
+                      <td className="px-4 py-3 align-top">
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? "Hide" : "Show"} timing details`}
+                          onClick={() =>
+                            setExpandedRows((current) => ({
+                              ...current,
+                              [key]: !current[key],
+                            }))
+                          }
+                          className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {isExpanded ? "^" : "v"}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-[var(--foreground)]">
+                        {ticket.subject || "-"}
+                      </td>
+                    </tr>
+
+                    {isExpanded && (
+                      <tr className="border-t border-[var(--card-border)] bg-[var(--card-bg)]">
+                        <td className="px-4 py-3" />
+                        <td className="px-4 py-3">
+                          <TicketTracking ticket={ticket} />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+
+              {!visibleTickets.length && (
+                <tr>
+                  <td colSpan={2} className="px-4 py-8 text-center text-[var(--muted)]">
+                    {loading ? "Loading..." : "No tickets found"}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3 text-sm text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            Showing {filteredTickets.length ? startIndex + 1 : 0} to {endIndex} of {filteredTickets.length} entries
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => goToPage(1)}
+              disabled={safePage === 1}
+              className="rounded-md border border-[var(--card-border)] px-3 py-1.5 font-medium text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              First
+            </button>
+            <button
+              type="button"
+              onClick={() => goToPage(safePage - 1)}
+              disabled={safePage === 1}
+              className="rounded-md border border-[var(--card-border)] px-3 py-1.5 font-medium text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Prev
+            </button>
+
+            {paginationPages.map((pageNumber, index) => {
+              const previousPage = paginationPages[index - 1];
+              const showGap = previousPage && pageNumber - previousPage > 1;
+
+              return (
+                <React.Fragment key={pageNumber}>
+                  {showGap && <span className="px-1">...</span>}
+                  <button
+                    type="button"
+                    onClick={() => goToPage(pageNumber)}
+                    className={`h-9 min-w-9 rounded-md border border-[var(--card-border)] px-3 font-semibold ${
+                      safePage === pageNumber
+                        ? "bg-indigo-600 text-white"
+                        : "text-[var(--foreground)]"
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                </React.Fragment>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => goToPage(safePage + 1)}
+              disabled={safePage === pageCount}
+              className="rounded-md border border-[var(--card-border)] px-3 py-1.5 font-medium text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+            <button
+              type="button"
+              onClick={() => goToPage(pageCount)}
+              disabled={safePage === pageCount}
+              className="rounded-md border border-[var(--card-border)] px-3 py-1.5 font-medium text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function TicketHoverTable({
   title,
@@ -429,6 +741,9 @@ const Zohoone = () => {
           {loading ? "Loading tickets..." : `${tickets.length} tickets`}
         </div>
       </div>
+
+      <TicketListCard tickets={tickets} loading={loading} />
+      <TicketVolcanoGraph tickets={tickets} />
 
       <div className="grid gap-5 xl:grid-cols-2">
         <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm">

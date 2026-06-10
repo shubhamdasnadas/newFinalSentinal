@@ -112,7 +112,7 @@ const ZohoDashboard = () => {
       setLoading(true);
 
       const zohoCode =
-        "1000.4885c079a13bf19702825bb19e6a8d76.f9da2890313f0757593726703070f315";
+        "1000.04f33ab31de81f3aab2ba867e465f491.450b32689fe2ceda84d00176191074cb";
 
       const [zohoResponse, ticketsDbResponse] = await Promise.all([
         fetch(`/api/zoho?code=${encodeURIComponent(zohoCode)}`),
@@ -234,8 +234,8 @@ const ZohoDashboard = () => {
                                   statusColors[status] || "#e5e7eb",
                                 color:
                                   status === "Acknowledge" ||
-                                  status === "WIP" ||
-                                  status === "Re-Open"
+                                    status === "WIP" ||
+                                    status === "Re-Open"
                                     ? "#ffffff"
                                     : "#111827",
                               }}
@@ -272,8 +272,7 @@ const ZohoDashboard = () => {
                                 <tbody>
                                   {statusTickets.map((ticket) => {
                                     const assigneeName = ticket?.assignee
-                                      ? `${ticket.assignee.firstName || ""} ${
-                                          ticket.assignee.lastName || ""
+                                      ? `${ticket.assignee.firstName || ""} ${ticket.assignee.lastName || ""
                                         }`.trim()
                                       : "-";
 
