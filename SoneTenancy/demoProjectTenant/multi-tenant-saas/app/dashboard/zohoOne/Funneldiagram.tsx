@@ -197,7 +197,10 @@ const Funneldiagram = () => {
     }, [tickets]);
 
     const slices = useMemo(() => buildSlices(statusCounts), [statusCounts]);
-
+    const stemColor =
+        slices.length > 0
+            ? slices[slices.length - 1].color
+            : "#D32F2F";
     return (
         <div
             style={{
@@ -266,7 +269,7 @@ const Funneldiagram = () => {
                             y={FUNNEL_BOT_Y}
                             width={STEM_HALF_W * 2}
                             height={STEM_H}
-                            fill="#6D1B3B"
+                            fill={stemColor}
                             rx={5}
                         />
 
