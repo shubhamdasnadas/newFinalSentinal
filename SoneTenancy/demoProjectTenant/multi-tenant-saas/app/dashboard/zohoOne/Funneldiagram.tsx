@@ -15,11 +15,10 @@ const FUNNEL_STATUSES = [
     "Revert Awaited - Vendor",
     "Escalated",
     "Technically Closed",
-    "Closed Won",
-    "Closed",
-    "Closed Lost",
+
     "Duplicate",
-    "Dropped",
+
+    "Closed",
 ];
 
 const SLICE_COLORS = [
@@ -34,11 +33,10 @@ const SLICE_COLORS = [
     "#3E9C42", // Revert Awaited - Vendor
     "#2E7D32", // Escalated
     "#E57373", // Technically Closed
-    "#EF5350", // Closed Won
-    "#D32F2F", // Closed
-    "#C62828", // Closed Lost
+
     "#880E4F", // Duplicate
-    "#6D1B3B", // Dropped (stem)
+  
+    "#D32F2F", // Closed
 ];
 
 type ZohoTicket = {

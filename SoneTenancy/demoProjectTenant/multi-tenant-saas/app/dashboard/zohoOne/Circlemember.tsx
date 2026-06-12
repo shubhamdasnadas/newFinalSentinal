@@ -57,49 +57,37 @@ interface PackedCircle {
 
 /** Simple iterative circle-packing: place each corp circle without overlap */
 function packCircles(radii: number[], containerR: number): { x: number; y: number }[] {
-    const positions: { x: number; y: number }[] = [];
-    const maxAttempts = 800;
+    const gap = 30;
 
-    for (let i = 0; i < radii.length; i++) {
-        const r = radii[i];
-        let placed = false;
-
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            // Random position inside the container
-            const angle = Math.random() * 2 * Math.PI;
-            const maxDist = containerR - r - 4;
-            const dist = Math.random() * maxDist;
-            const cx = Math.cos(angle) * dist;
-            const cy = Math.sin(angle) * dist;
-
-            // Check overlap with already-placed circles
-            let overlaps = false;
-            for (let j = 0; j < positions.length; j++) {
-                const dx = cx - positions[j].x;
-                const dy = cy - positions[j].y;
-                const minDist = radii[j] + r + 8;
-                if (Math.sqrt(dx * dx + dy * dy) < minDist) {
-                    overlaps = true;
-                    break;
-                }
-            }
-
-            if (!overlaps) {
-                positions.push({ x: cx, y: cy });
-                placed = true;
-                break;
-            }
-        }
-
-        if (!placed) {
-            // Fallback: push to edge
-            const angle = (i / radii.length) * 2 * Math.PI;
-            const dist = containerR * 0.5;
-            positions.push({ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist });
-        }
+    if (radii.length === 1) {
+        return [{ x: 0, y: 0 }];
     }
 
-    return positions;
+    if (radii.length === 2) {
+        return [
+            { x: -radii[0] - gap / 2, y: 0 },
+            { x: radii[1] + gap / 2, y: 0 },
+        ];
+    }
+
+    // ✅ fixed separate layout for 3 main organization circles
+    if (radii.length === 3) {
+        return [
+            { x: 0, y: -containerR * 0.42 },
+            { x: -containerR * 0.42, y: containerR * 0.32 },
+            { x: containerR * 0.42, y: containerR * 0.32 },
+        ];
+    }
+
+    const positions: { x: number; y: number }[] = [];
+    return radii.map((r, i) => {
+        const angle = (i / radii.length) * Math.PI * 2;
+        const dist = containerR - r - gap;
+        return {
+            x: Math.cos(angle) * dist,
+            y: Math.sin(angle) * dist,
+        };
+    });
 }
 
 interface AssigneePackedCircle {
@@ -113,21 +101,41 @@ function packAssigneeCircles(
     assignees: { name: string; count: number }[],
     corpR: number
 ): AssigneePackedCircle[] {
-    const maxCount = Math.max(...assignees.map((a) => a.count), 1);
-    const radii = assignees.map((a) =>
-        Math.max(28, Math.min(corpR * 0.42, 28 + (a.count / maxCount) * (corpR * 0.38)))
-    );
+    const sorted = assignees
+        .map((a, idx) => ({ ...a, originalIndex: idx }))
+        .sort((a, b) => b.count - a.count);
 
-    const positions = packCircles(radii, corpR - 10);
+    const maxCount = Math.max(...sorted.map((a) => a.count), 1);
 
-    return assignees.map((_, i) => ({
-        x: positions[i]?.x ?? 0,
-        y: positions[i]?.y ?? 0,
-        r: radii[i],
-        idx: i,
-    }));
+    const placed: AssigneePackedCircle[] = [];
+
+    sorted.forEach((a, sortedIdx) => {
+        const r = Math.max(
+            16,
+            Math.min(corpR * 0.2, 16 + (a.count / maxCount) * (corpR * 0.12))
+        );
+
+        const total = sorted.length;
+
+        // ✅ place bubbles on outer ring / corner side
+        const angle = (sortedIdx / total) * Math.PI * 2 - Math.PI / 2;
+
+        // ✅ keep bubble near boundary of parent circle
+        const ringRadius = corpR - r - 10;
+
+        const x = Math.cos(angle) * ringRadius;
+        const y = Math.sin(angle) * ringRadius;
+
+        placed.push({
+            x,
+            y,
+            r,
+            idx: a.originalIndex,
+        });
+    });
+
+    return placed;
 }
-
 // ─── Sub-component: one corporation circle ────────────────────────────────────
 const CorpCircle = ({
     corp,
@@ -138,11 +146,27 @@ const CorpCircle = ({
     corpR: number;
     colorScheme: typeof CORP_COLORS[0];
 }) => {
+    const [hoveredAssignee, setHoveredAssignee] = useState<{
+        name: string;
+        count: number;
+        x: number;
+        y: number;
+    } | null>(null);
     const packed = useMemo(
         () => packAssigneeCircles(corp.assignees, corpR),
         [corp.assignees, corpR]
     );
 
+    const getInitials = (name: string) => {
+        if (!name || name === "Unassigned") return "UA";
+
+        return name
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((word) => word[0]?.toUpperCase())
+            .join("");
+    };
     return (
         <div
             style={{
@@ -154,23 +178,25 @@ const CorpCircle = ({
                 position: "relative",
                 flexShrink: 0,
                 boxShadow: `0 0 32px ${colorScheme.border}`,
+                overflow: "hidden",
             }}
         >
             {/* Corp label at top */}
             <div
                 style={{
                     position: "absolute",
-                    top: "10%",
-                    left: 0,
-                    right: 0,
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
                     textAlign: "center",
                     pointerEvents: "none",
-                    zIndex: 2,
+                    zIndex: 5,
+                    width: corpR * 0.55,
                 }}
             >
                 <div
                     style={{
-                        fontSize: Math.max(10, corpR * 0.13),
+                        fontSize: Math.max(11, corpR * 0.11),
                         fontWeight: 700,
                         color: colorScheme.label,
                         lineHeight: 1.2,
@@ -179,9 +205,9 @@ const CorpCircle = ({
                 >
                     {corp.corporation}
                 </div>
-                <div style={{ fontSize: Math.max(9, corpR * 0.1), color: "#b05040", marginTop: 2 }}>
+                {/* <div style={{ fontSize: Math.max(9, corpR * 0.1), color: "#b05040", marginTop: 2 }}>
                     {corp.total} Tickets
-                </div>
+                </div> */}
             </div>
 
             {/* Assignee bubbles */}
@@ -208,7 +234,7 @@ const CorpCircle = ({
                             alignItems: "center",
                             justifyContent: "center",
                             flexDirection: "column",
-                            zIndex: 3,
+                            zIndex: 5,
                             cursor: "default",
                             transition: "transform 0.18s ease, box-shadow 0.18s ease",
                         }}
@@ -225,24 +251,25 @@ const CorpCircle = ({
                     >
                         <span
                             style={{
-                                fontSize,
-                                fontWeight: 700,
+                                fontSize: Math.max(12, Math.min(22, p.r * 0.45)),
+                                fontWeight: 800,
                                 color: "#fff",
                                 textAlign: "center",
-                                lineHeight: 1.2,
-                                padding: "0 4px",
-                                display: "block",
-                                maxWidth: p.r * 1.8,
-                                wordBreak: "break-word",
+                                lineHeight: 1,
                             }}
                         >
-                            {assignee.name}
+                            {getInitials(assignee.name)}
                         </span>
                         <span
                             style={{
-                                fontSize: Math.max(7, fontSize - 1),
-                                color: "rgba(255,255,255,0.85)",
-                                marginTop: 2,
+                                fontSize: Math.max(7, Math.min(10, p.r * 0.18)),
+                                color: "rgba(255,255,255,0.9)",
+                                marginTop: 4,
+                                textAlign: "center",
+                                maxWidth: p.r * 1.6,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
                             }}
                         >
                             {assignee.count} Tickets
@@ -295,19 +322,20 @@ const Circlemember = ({ tickets }: { tickets: Circletable[] }) => {
     }, [tickets]);
 
     // ── Compute corp circle radii proportional to ticket count ────────────────
-    const mainR = Math.min(containerSize / 2 - 16, 260);
+    const mainR = Math.min(containerSize / 2 - 16, 340);
     const totalTickets = corporationData.reduce((s, c) => s + c.total, 0) || 1;
 
     const corpRadii = useMemo(
         () =>
             corporationData.map((c) => {
-                const frac = c.total / totalTickets;
-                const minR = mainR * 0.18;
-                const maxR = mainR * 0.48;
-                return Math.max(minR, Math.min(maxR, minR + frac * (maxR - minR) * corporationData.length));
+                const assigneeCount = c.assignees.length;
+
+                if (assigneeCount >= 8) return 150; // Techsec
+                if (assigneeCount >= 3) return 125; // TJSB / PCPL
+
+                return 95;
             }),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [corporationData, mainR, totalTickets]
+        [corporationData]
     );
 
     // ── Pack corp circles inside main circle ──────────────────────────────────

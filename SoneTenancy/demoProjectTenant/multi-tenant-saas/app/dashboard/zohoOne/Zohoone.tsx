@@ -6,6 +6,8 @@ import Circlemember from "./Circlemember";
 import Mttrcard from "./Mttrcard";
 import Funneldiagram from "./Funneldiagram";
 import Hourbasedset from "./Hourbasedset";
+import Zohoticketcount from "./Zohoticketcount";
+import Topperformance from "./Topperformance";
 
 
 type ZohoTicket = {
@@ -752,10 +754,13 @@ const Zohoone = () => {
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <Funneldiagram />
-        {/* <Hourbasedset tickets={tickets} /> */}
+        <Topperformance tickets={tickets} />
       </div>
       <div className="grid gap-5 s:grid-cols-4">
         <Hourbasedset tickets={tickets} />
+      </div>
+      <div className="grid gap-5 s:grid-cols-4">
+        <Zohoticketcount />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm">
