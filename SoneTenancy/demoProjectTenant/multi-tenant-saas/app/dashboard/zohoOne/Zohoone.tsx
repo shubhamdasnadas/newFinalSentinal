@@ -748,13 +748,13 @@ const Zohoone = () => {
 
       <TicketListCard tickets={tickets} loading={loading} />
       <TicketVolcanoGraph tickets={tickets} />
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         <Circlemember tickets={tickets} />
         <Mttrcard tickets={tickets} />
+        <Topperformance tickets={tickets} />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <Funneldiagram />
-        <Topperformance tickets={tickets} />
       </div>
       <div className="grid gap-5 s:grid-cols-4">
         <Hourbasedset tickets={tickets} />
@@ -780,7 +780,7 @@ const Zohoone = () => {
               />
             )}
 
-            <div className="flex h-32 items-end gap-3 overflow-x-auto pb-2 sm:gap-5">
+            <div className="h-full w-full flex h-32 items-end gap-3 overflow-x-auto pb-2 sm:gap-5">
               {ticketTrend.map((row, index) => {
                 const count = row.tickets.length;
                 const height = Math.max((count / maxTicketCount) * 100, count ? 10 : 3);
@@ -789,7 +789,7 @@ const Zohoone = () => {
                 return (
                   <div
                     key={row.day}
-                    className="flex min-w-16 flex-1 flex-col items-center justify-end gap-2"
+                    className="h-full w-full flex min-w-16 flex-1 flex-col items-center justify-end gap-2"
                   >
                     <button
                       type="button"

@@ -511,7 +511,7 @@ export default function SecurityDashboard() {
             <div className="drag-handle cursor-grab active:cursor-grabbing flex-shrink-0 select-none">
 
               {/* Title row */}
-              <div className="flex items-center justify-between px-4 pt-3 pb-2">
+              <div className="flex items-center justify-between px-4 pt-3 pb-2">0.
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
                     <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

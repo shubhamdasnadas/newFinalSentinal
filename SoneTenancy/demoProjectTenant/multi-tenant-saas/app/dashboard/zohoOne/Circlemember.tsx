@@ -57,32 +57,25 @@ interface PackedCircle {
 
 /** Simple iterative circle-packing: place each corp circle without overlap */
 function packCircles(radii: number[], containerR: number): { x: number; y: number }[] {
-    const gap = 30;
+    if (radii.length === 1) return [{ x: 0, y: 0 }];
 
-    if (radii.length === 1) {
-        return [{ x: 0, y: 0 }];
-    }
-
-    if (radii.length === 2) {
-        return [
-            { x: -radii[0] - gap / 2, y: 0 },
-            { x: radii[1] + gap / 2, y: 0 },
-        ];
-    }
-
-    // ✅ fixed separate layout for 3 main organization circles
     if (radii.length === 3) {
         return [
-            { x: 0, y: -containerR * 0.42 },
-            { x: -containerR * 0.42, y: containerR * 0.32 },
-            { x: containerR * 0.42, y: containerR * 0.32 },
+            // TJSB
+            { x: 0, y: -containerR * 0.55 },
+
+            // Techsec
+            { x: -containerR * 0.40, y: containerR * 0.35 },
+
+            // PCPL
+            { x: containerR * 0.50, y: containerR * 0.20 },
         ];
     }
 
-    const positions: { x: number; y: number }[] = [];
     return radii.map((r, i) => {
         const angle = (i / radii.length) * Math.PI * 2;
-        const dist = containerR - r - gap;
+        const dist = containerR - r - 25;
+
         return {
             x: Math.cos(angle) * dist,
             y: Math.sin(angle) * dist,
@@ -111,10 +104,9 @@ function packAssigneeCircles(
 
     sorted.forEach((a, sortedIdx) => {
         const r = Math.max(
-            16,
-            Math.min(corpR * 0.2, 16 + (a.count / maxCount) * (corpR * 0.12))
+            13,
+            Math.min(corpR * 0.18, 13 + (a.count / maxCount) * (corpR * 0.10))
         );
-
         const total = sorted.length;
 
         // ✅ place bubbles on outer ring / corner side
@@ -235,7 +227,7 @@ const CorpCircle = ({
                             justifyContent: "center",
                             flexDirection: "column",
                             zIndex: 5,
-                            cursor: "default",
+                            cursor: "pointer",
                             transition: "transform 0.18s ease, box-shadow 0.18s ease",
                         }}
                         onMouseEnter={(e) => {
@@ -322,7 +314,7 @@ const Circlemember = ({ tickets }: { tickets: Circletable[] }) => {
     }, [tickets]);
 
     // ── Compute corp circle radii proportional to ticket count ────────────────
-    const mainR = Math.min(containerSize / 2 - 16, 340);
+    const mainR = Math.min(containerSize * 0.34, 285);
     const totalTickets = corporationData.reduce((s, c) => s + c.total, 0) || 1;
 
     const corpRadii = useMemo(
@@ -330,10 +322,10 @@ const Circlemember = ({ tickets }: { tickets: Circletable[] }) => {
             corporationData.map((c) => {
                 const assigneeCount = c.assignees.length;
 
-                if (assigneeCount >= 8) return 150; // Techsec
-                if (assigneeCount >= 3) return 125; // TJSB / PCPL
+                if (assigneeCount >= 8) return 78;
+                if (assigneeCount >= 3) return 72;
 
-                return 95;
+                return 62;
             }),
         [corporationData]
     );
@@ -360,14 +352,19 @@ const Circlemember = ({ tickets }: { tickets: Circletable[] }) => {
             </div>
         );
     }
-
+    const circleR = mainR * 0.75;
     return (
         <div
+        className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm"
             ref={containerRef}
             style={{
+                // height: "90%",
+                // width: "60%",
                 background: "#fdf4f2",
                 borderRadius: 16,
-                padding: 16,
+                padding: 10,
+                textAlign: "center",
+                // color: "#c06050",
                 fontFamily: "'Inter', 'Segoe UI', sans-serif",
                 userSelect: "none",
             }}
@@ -389,22 +386,21 @@ const Circlemember = ({ tickets }: { tickets: Circletable[] }) => {
             <div
                 style={{
                     position: "relative",
-                    width: mainR * 2,
-                    height: mainR * 2,
+                    width: circleR * 2,
+                    height: circleR * 2,
                     borderRadius: "50%",
                     background:
                         "radial-gradient(circle at 40% 40%, rgba(255,210,200,0.55), rgba(250,180,170,0.25))",
                     border: "2px solid rgba(220,100,80,0.30)",
                     boxShadow:
                         "0 0 60px rgba(240,100,80,0.12), inset 0 0 40px rgba(240,100,80,0.06)",
-                    margin: "0 auto",
+                    margin: "10px auto 0",
                     overflow: "hidden",
                 }}
             >
-                {/* Corp circles positioned absolutely inside main circle */}
                 {corporationData.map((corp, idx) => {
                     const r = corpRadii[idx];
-                    const pos = corpPositions[idx] ?? { x: 0, y: 0 };
+                    const pos = packCircles(corpRadii, circleR)[idx] ?? { x: 0, y: 0 };
                     const colorScheme = CORP_COLORS[idx % CORP_COLORS.length];
 
                     return (
@@ -412,28 +408,24 @@ const Circlemember = ({ tickets }: { tickets: Circletable[] }) => {
                             key={corp.corporation}
                             style={{
                                 position: "absolute",
-                                left: mainR + pos.x - r,
-                                top: mainR + pos.y - r,
+                                left: circleR + pos.x - r,
+                                top: circleR + pos.y - r,
                             }}
                         >
-                            <CorpCircle
-                                corp={corp}
-                                corpR={r}
-                                colorScheme={colorScheme}
-                            />
+                            <CorpCircle corp={corp} corpR={r} colorScheme={colorScheme} />
                         </div>
                     );
                 })}
             </div>
 
-            {/* ── Legend ── */}
+            {/* ── Legend ──
             <div
                 style={{
                     display: "flex",
                     flexWrap: "wrap",
                     justifyContent: "center",
-                    gap: "8px 20px",
-                    marginTop: 20,
+                    gap: "8px 8px",
+                    // marginTop: 20,
                 }}
             >
                 {corporationData.map((corp, idx) => (
@@ -455,7 +447,7 @@ const Circlemember = ({ tickets }: { tickets: Circletable[] }) => {
                         </span>
                     </div>
                 ))}
-            </div>
+            </div> */}
         </div>
     );
 };

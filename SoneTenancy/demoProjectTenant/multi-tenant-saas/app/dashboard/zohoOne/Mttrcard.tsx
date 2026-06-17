@@ -39,7 +39,19 @@ const getClosedDate = (ticket: Mttr) =>
   ticket.closeTime ||
   ticket.closedDate ||
   "";
+const calculateMttrScore = (hours: number) => {
+  const MAX_HOURS = 100;
 
+  const score = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(((MAX_HOURS - hours) / MAX_HOURS) * 100)
+    )
+  );
+
+  return score;
+};
 const getMttrScore = (hours: number) => {
   if (hours < 12) return 100;
   if (hours < 24) return 90;
@@ -147,10 +159,6 @@ const Mttrcard = ({ tickets }: { tickets: Mttr[] }) => {
 
       const min = resolutionTimes.length > 0 ? Math.min(...resolutionTimes) : 0;
       const max = resolutionTimes.length > 0 ? Math.max(...resolutionTimes) : 0;
-        console.log("Resolution Times:", resolutionTimes);
-        console.log("Average Resolution Time:", avg);
-        console.log("Minimum Resolution Time:", min);
-        console.log("Maximum Resolution Time:", max);
       return {
         avgResolutionTime: avg,
         minResolutionTime: min,
@@ -162,12 +170,13 @@ const Mttrcard = ({ tickets }: { tickets: Mttr[] }) => {
     }, [tickets]);
 
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-lg">
+    <div className="w-full rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-lg">
       <h2 className="mb-6 text-xl font-bold text-white">MTTR Score</h2>
 
       <MttrGauge
+
         title="Average MTTR"
-        score={avgScore}
+        score={calculateMttrScore(avgScore)}
         hours={avgResolutionTime}
         subtitle="Mean Time To Resolution"
       />

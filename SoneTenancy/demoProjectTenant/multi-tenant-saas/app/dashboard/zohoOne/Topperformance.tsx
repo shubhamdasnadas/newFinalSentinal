@@ -117,8 +117,29 @@ const Topperformance = ({ tickets }: { tickets: performanceData[] }) => {
 
         return Object.values(engineerMap)
             .sort((a, b) => a.totalHours - b.totalHours)
-            .slice(0, 5);
+            .slice(0, 10);
     }, [tickets]);
+
+    const getScore = (hours: number, count: number) => {
+        console.log(
+            "Calculating score for hours:",
+            hours.toFixed(2),
+            "and count:",
+            count
+        );
+
+        let score = 100 - Math.floor(hours / 10) * 10;
+
+        // If hours > 100, always keep score at 10
+        if (hours > 100) {
+            score = 10;
+        }
+
+        // Score should never go below 10
+        score = Math.max(10, Math.min(100, score));
+
+        return score;
+    };
 
     return (
         <div className="w-full rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-sm overflow-hidden">
@@ -142,6 +163,10 @@ const Topperformance = ({ tickets }: { tickets: performanceData[] }) => {
 
                                 <th className="px-5 py-3 text-center border-b border-[var(--card-border)] font-semibold text-[var(--foreground)]">
                                     Closed Tickets
+                                </th>
+
+                                <th className="px-5 py-3 text-right border-b border-[var(--card-border)] font-semibold text-[var(--foreground)]">
+                                    Score Point
                                 </th>
 
                                 <th className="px-5 py-3 text-right border-b border-[var(--card-border)] font-semibold text-[var(--foreground)]">
@@ -183,7 +208,11 @@ const Topperformance = ({ tickets }: { tickets: performanceData[] }) => {
                                         </td>
 
                                         <td className="px-5 py-4 text-right border-b border-[var(--card-border)] font-bold whitespace-nowrap text-red-600">
-                                            {row.totalHours.toFixed(2)} hr
+                                            {getScore(row.totalHours, row.ticketCount).toFixed(2)}
+                                        </td>
+
+                                        <td className="px-5 py-4 text-right border-b border-[var(--card-border)] font-bold whitespace-nowrap text-red-600">
+                                            {row.totalHours.toFixed(2)}
                                         </td>
                                     </tr>
                                 ))
