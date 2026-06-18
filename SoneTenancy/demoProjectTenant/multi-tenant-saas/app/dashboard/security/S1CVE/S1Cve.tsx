@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import CveCard from "../CVE/CveCard";
 
 type S1ApplicationCve = {
     name?: string;
@@ -116,175 +117,178 @@ const S1Cve = () => {
     }, [rawCves]);
 
     return (
-        <div className="w-full min-h-screen p-6 bg-slate-950 text-slate-100">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-white">
-                    SentinelOne Application CVE Dashboard
-                </h1>
+        <>
+            {/* <div className="w-full min-h-screen p-6 bg-slate-950 text-slate-100">
+                <div className="mb-6">
+                    <h1 className="text-2xl font-bold text-white">
+                        SentinelOne Application CVE Dashboard
+                    </h1>
 
-                <p className="text-sm text-slate-400">
-                    Application vulnerability records from SentinelOne
-                </p>
-
-                {lastSyncedAt && (
-                    <p className="mt-1 text-xs text-slate-500">
-                        Last synced: {formatDateTime(lastSyncedAt)}
+                    <p className="text-sm text-slate-400">
+                        Application vulnerability records from SentinelOne
                     </p>
-                )}
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 mb-6">
-                <div className="rounded-xl border border-slate-700 p-4 bg-slate-900">
-                    <p className="text-xs text-slate-400">Applications</p>
-                    <h2 className="text-2xl font-bold text-white">
-                        {stats.totalApplications}
-                    </h2>
+                    {lastSyncedAt && (
+                        <p className="mt-1 text-xs text-slate-500">
+                            Last synced: {formatDateTime(lastSyncedAt)}
+                        </p>
+                    )}
                 </div>
 
-                <div className="rounded-xl border border-slate-700 p-4 bg-slate-900">
-                    <p className="text-xs text-slate-400">Total CVEs</p>
-                    <h2 className="text-2xl font-bold text-white">{stats.totalCves}</h2>
-                </div>
-
-                <div className="rounded-xl border border-red-800 p-4 bg-red-950/40">
-                    <p className="text-xs text-red-300">High Apps</p>
-                    <h2 className="text-2xl font-bold text-red-400">{stats.high}</h2>
-                </div>
-
-                <div className="rounded-xl border border-yellow-800 p-4 bg-yellow-950/40">
-                    <p className="text-xs text-yellow-300">Medium Apps</p>
-                    <h2 className="text-2xl font-bold text-yellow-400">
-                        {stats.medium}
-                    </h2>
-                </div>
-
-                <div className="rounded-xl border border-blue-800 p-4 bg-blue-950/40">
-                    <p className="text-xs text-blue-300">Low Apps</p>
-                    <h2 className="text-2xl font-bold text-blue-400">{stats.low}</h2>
-                </div>
-
-                <div className="rounded-xl border border-slate-700 p-4 bg-slate-900">
-                    <p className="text-xs text-slate-400">Affected Endpoints</p>
-                    <h2 className="text-2xl font-bold text-white">
-                        {stats.totalEndpoints}
-                    </h2>
-                </div>
-
-                <div className="rounded-xl border border-slate-700 p-4 bg-slate-900">
-                    <p className="text-xs text-slate-400">Avg Score</p>
-                    <h2 className="text-2xl font-bold text-white">{stats.avgScore}</h2>
-                </div>
-            </div>
-
-            {loading && (
-                <div className="rounded-xl border border-slate-700 bg-slate-900 p-6 text-center text-sm text-slate-300">
-                    Loading CVE data...
-                </div>
-            )}
-
-            {!loading && error && (
-                <div className="rounded-xl border border-red-700 bg-red-950/40 p-4 text-red-300">
-                    {error}
-                </div>
-            )}
-
-            {!loading && !error && rawCves.length === 0 && (
-                <div className="rounded-xl border border-slate-700 bg-slate-900 p-6 text-center text-sm text-slate-400">
-                    No CVE records found.
-                </div>
-            )}
-
-            {!loading && !error && rawCves.length > 0 && (
-                <div className="rounded-xl border border-slate-700 bg-slate-900 shadow-sm overflow-hidden">
-                    <div className="px-4 py-3 border-b border-slate-700">
-                        <h2 className="text-lg font-semibold text-white">
-                            Application CVE Records
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 mb-6">
+                    <div className="rounded-xl border border-slate-700 p-4 bg-slate-900">
+                        <p className="text-xs text-slate-400">Applications</p>
+                        <h2 className="text-2xl font-bold text-white">
+                            {stats.totalApplications}
                         </h2>
                     </div>
 
-                    <div className="overflow-auto max-h-[650px]">
-                        <table className="min-w-[1200px] w-full text-sm">
-                            <thead className="sticky top-0 z-10 bg-slate-800">
-                                <tr className="text-slate-200">
-                                    <th className="px-4 py-3 text-left">Application</th>
-                                    <th className="px-4 py-3 text-left">Vendor</th>
-                                    <th className="px-4 py-3 text-left">CVEs</th>
-                                    <th className="px-4 py-3 text-left">Highest Severity</th>
-                                    <th className="px-4 py-3 text-left">Base Score</th>
-                                    <th className="px-4 py-3 text-left">Endpoints</th>
-                                    <th className="px-4 py-3 text-left">Days Detected</th>
-                                    <th className="px-4 py-3 text-left">Detection Date</th>
-                                    <th className="px-4 py-3 text-left">Estimate</th>
-                                    <th className="px-4 py-3 text-left">Application ID</th>
-                                </tr>
-                            </thead>
+                    <div className="rounded-xl border border-slate-700 p-4 bg-slate-900">
+                        <p className="text-xs text-slate-400">Total CVEs</p>
+                        <h2 className="text-2xl font-bold text-white">{stats.totalCves}</h2>
+                    </div>
 
-                            <tbody>
-                                {rawCves.map((item, index) => (
-                                    <tr
-                                        key={item.applicationId || index}
-                                        className="border-t border-slate-800 hover:bg-slate-800/70"
-                                    >
-                                        <td className="px-4 py-3 font-semibold text-blue-300 max-w-[320px]">
-                                            {item.name || "-"}
-                                        </td>
+                    <div className="rounded-xl border border-red-800 p-4 bg-red-950/40">
+                        <p className="text-xs text-red-300">High Apps</p>
+                        <h2 className="text-2xl font-bold text-red-400">{stats.high}</h2>
+                    </div>
 
-                                        <td className="px-4 py-3 text-slate-300">
-                                            {item.vendor || "-"}
-                                        </td>
+                    <div className="rounded-xl border border-yellow-800 p-4 bg-yellow-950/40">
+                        <p className="text-xs text-yellow-300">Medium Apps</p>
+                        <h2 className="text-2xl font-bold text-yellow-400">
+                            {stats.medium}
+                        </h2>
+                    </div>
 
-                                        <td className="px-4 py-3 font-bold text-white">
-                                            {item.cveCount ?? 0}
-                                        </td>
+                    <div className="rounded-xl border border-blue-800 p-4 bg-blue-950/40">
+                        <p className="text-xs text-blue-300">Low Apps</p>
+                        <h2 className="text-2xl font-bold text-blue-400">{stats.low}</h2>
+                    </div>
 
-                                        <td className="px-4 py-3">
-                                            <span
-                                                className={`px-2 py-1 rounded-full text-xs font-bold border ${getSeverityClass(
-                                                    item.highestSeverity
-                                                )}`}
-                                            >
-                                                {item.highestSeverity || "-"}
-                                            </span>
-                                        </td>
+                    <div className="rounded-xl border border-slate-700 p-4 bg-slate-900">
+                        <p className="text-xs text-slate-400">Affected Endpoints</p>
+                        <h2 className="text-2xl font-bold text-white">
+                            {stats.totalEndpoints}
+                        </h2>
+                    </div>
 
-                                        <td className="px-4 py-3 font-semibold text-slate-100">
-                                            {item.highestNvdBaseScore || "-"}
-                                        </td>
-
-                                        <td className="px-4 py-3 text-slate-300">
-                                            {item.endpointCount ?? 0}
-                                        </td>
-
-                                        <td className="px-4 py-3 text-slate-300">
-                                            {item.daysDetected ?? "-"}
-                                        </td>
-
-                                        <td className="px-4 py-3 text-slate-300 whitespace-nowrap">
-                                            {formatDateTime(item.detectionDate)}
-                                        </td>
-
-                                        <td className="px-4 py-3">
-                                            <span
-                                                className={`px-2 py-1 rounded-full text-xs font-semibold ${item.estimate
-                                                        ? "bg-orange-100 text-orange-700"
-                                                        : "bg-green-100 text-green-700"
-                                                    }`}
-                                            >
-                                                {item.estimate ? "Yes" : "No"}
-                                            </span>
-                                        </td>
-
-                                        <td className="px-4 py-3 text-slate-400">
-                                            {item.applicationId || "-"}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    <div className="rounded-xl border border-slate-700 p-4 bg-slate-900">
+                        <p className="text-xs text-slate-400">Avg Score</p>
+                        <h2 className="text-2xl font-bold text-white">{stats.avgScore}</h2>
                     </div>
                 </div>
-            )}
-        </div>
+
+                {loading && (
+                    <div className="rounded-xl border border-slate-700 bg-slate-900 p-6 text-center text-sm text-slate-300">
+                        Loading CVE data...
+                    </div>
+                )}
+
+                {!loading && error && (
+                    <div className="rounded-xl border border-red-700 bg-red-950/40 p-4 text-red-300">
+                        {error}
+                    </div>
+                )}
+
+                {!loading && !error && rawCves.length === 0 && (
+                    <div className="rounded-xl border border-slate-700 bg-slate-900 p-6 text-center text-sm text-slate-400">
+                        No CVE records found.
+                    </div>
+                )}
+
+                {!loading && !error && rawCves.length > 0 && (
+                    <div className="rounded-xl border border-slate-700 bg-slate-900 shadow-sm overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-700">
+                            <h2 className="text-lg font-semibold text-white">
+                                Application CVE Records
+                            </h2>
+                        </div>
+
+                        <div className="overflow-auto max-h-[650px]">
+                            <table className="min-w-[1200px] w-full text-sm">
+                                <thead className="sticky top-0 z-10 bg-slate-800">
+                                    <tr className="text-slate-200">
+                                        <th className="px-4 py-3 text-left">Application</th>
+                                        <th className="px-4 py-3 text-left">Vendor</th>
+                                        <th className="px-4 py-3 text-left">CVEs</th>
+                                        <th className="px-4 py-3 text-left">Highest Severity</th>
+                                        <th className="px-4 py-3 text-left">Base Score</th>
+                                        <th className="px-4 py-3 text-left">Endpoints</th>
+                                        <th className="px-4 py-3 text-left">Days Detected</th>
+                                        <th className="px-4 py-3 text-left">Detection Date</th>
+                                        <th className="px-4 py-3 text-left">Estimate</th>
+                                        <th className="px-4 py-3 text-left">Application ID</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {rawCves.map((item, index) => (
+                                        <tr
+                                            key={item.applicationId || index}
+                                            className="border-t border-slate-800 hover:bg-slate-800/70"
+                                        >
+                                            <td className="px-4 py-3 font-semibold text-blue-300 max-w-[320px]">
+                                                {item.name || "-"}
+                                            </td>
+
+                                            <td className="px-4 py-3 text-slate-300">
+                                                {item.vendor || "-"}
+                                            </td>
+
+                                            <td className="px-4 py-3 font-bold text-white">
+                                                {item.cveCount ?? 0}
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                <span
+                                                    className={`px-2 py-1 rounded-full text-xs font-bold border ${getSeverityClass(
+                                                        item.highestSeverity
+                                                    )}`}
+                                                >
+                                                    {item.highestSeverity || "-"}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-4 py-3 font-semibold text-slate-100">
+                                                {item.highestNvdBaseScore || "-"}
+                                            </td>
+
+                                            <td className="px-4 py-3 text-slate-300">
+                                                {item.endpointCount ?? 0}
+                                            </td>
+
+                                            <td className="px-4 py-3 text-slate-300">
+                                                {item.daysDetected ?? "-"}
+                                            </td>
+
+                                            <td className="px-4 py-3 text-slate-300 whitespace-nowrap">
+                                                {formatDateTime(item.detectionDate)}
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                <span
+                                                    className={`px-2 py-1 rounded-full text-xs font-semibold ${item.estimate
+                                                        ? "bg-orange-100 text-orange-700"
+                                                        : "bg-green-100 text-green-700"
+                                                        }`}
+                                                >
+                                                    {item.estimate ? "Yes" : "No"}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-4 py-3 text-slate-400">
+                                                {item.applicationId || "-"}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </div> */}
+                <CveCard />   
+        </>
     );
 };
 

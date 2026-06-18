@@ -1123,6 +1123,7 @@ export default function S1Agent() {
                 {/* {activeTab === "network" && <NetworkStatusTable data={views.networkStatusDistribution} />} */}
                 {activeTab === "risky" && <TopRiskyTable data={views.topRiskyEndpoints} />}
             </div>
+            
         </div>
     );
 }
