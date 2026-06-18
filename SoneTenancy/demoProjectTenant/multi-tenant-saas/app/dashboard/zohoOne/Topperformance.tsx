@@ -152,7 +152,7 @@ const Topperformance = ({ tickets }: { tickets: performanceData[] }) => {
                 </p>
             </div>
 
-            <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+            <div className="p-4" style={{maxHeight: '500px', overflowY:'auto'}}>
                 <div className="overflow-hidden rounded-xl border border-[var(--card-border)]">
                     <table className="w-full text-sm border-collapse">
                         <thead className="bg-[var(--muted-bg)]">

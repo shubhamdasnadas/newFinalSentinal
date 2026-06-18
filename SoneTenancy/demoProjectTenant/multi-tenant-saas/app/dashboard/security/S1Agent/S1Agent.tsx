@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { InactiveDashboardWidgets } from "../Agent/inactive/Inactive";
+import { UserDeviceDashboardWidgets } from "../Agent/userdevice/UserDevice";
 
 // ─── Raw agent shape from /api/sentinelone/sentinalone_agentinfo ───────────────
 interface RawAgent {
@@ -1094,6 +1096,8 @@ export default function S1Agent() {
                 />
             </div>
 
+            {/* Inactive Machines Widgets — always visible */}
+
             {/* Tabs */}
             <div className="flex flex-wrap gap-1.5 border-b border-[var(--card-border)] overflow-x-auto">
                 {TABS.map(tab => (
@@ -1123,7 +1127,12 @@ export default function S1Agent() {
                 {/* {activeTab === "network" && <NetworkStatusTable data={views.networkStatusDistribution} />} */}
                 {activeTab === "risky" && <TopRiskyTable data={views.topRiskyEndpoints} />}
             </div>
-            
+
+            {/* Inactive analytics widgets */}
+            <InactiveDashboardWidgets data={views.inactiveOlderThan7Days} />
+
+            {/* User device analytics widgets */}
+            <UserDeviceDashboardWidgets data={views.userWiseDeviceMapping} />
         </div>
     );
 }
