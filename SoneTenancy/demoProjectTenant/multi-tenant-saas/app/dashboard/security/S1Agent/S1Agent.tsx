@@ -1126,7 +1126,7 @@ export default function S1Agent() {
 
             <SiteHealthTable data={views.siteWiseSecurityHealthScore} />
 
-            <Riskyendpoint data={views.topRiskyEndpoints} />
+            {/* <Riskyendpoint data={views.topRiskyEndpoints} /> */}
         </div>
     );
 }
