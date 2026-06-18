@@ -314,7 +314,7 @@ const Circlemember = ({ tickets }: { tickets: Circletable[] }) => {
     }, [tickets]);
 
     // ── Compute corp circle radii proportional to ticket count ────────────────
-    const mainR = Math.min(containerSize * 0.34, 285);
+    const mainR = Math.min(containerSize * 0.34, 220);
     const totalTickets = corporationData.reduce((s, c) => s + c.total, 0) || 1;
 
     const corpRadii = useMemo(
