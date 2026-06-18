@@ -1101,7 +1101,7 @@ export default function S1Agent() {
             {/* Inactive Machines Widgets — always visible */}
 
             {/* Tabs */}
-            <div className="flex flex-wrap gap-1.5 border-b border-[var(--card-border)] overflow-x-auto">
+            {/* <div className="flex flex-wrap gap-1.5 border-b border-[var(--card-border)] overflow-x-auto">
                 {TABS.map(tab => (
                     <button
                         key={tab.key}
@@ -1114,21 +1114,9 @@ export default function S1Agent() {
                         {tab.label}
                     </button>
                 ))}
-            </div>
+            </div> */}
 
-            {/* Tab content */}
-            <div>
-                {activeTab === "inactive" && <InactiveMachinesTable data={views.inactiveOlderThan7Days} />}
-                {/* {activeTab === "oldAgent" && <OldAgentTable data={views.oldAgentVersionMachines} />} */}
-                {activeTab === "firewall" && <FirewallDisabledTable data={views.firewallDisabledMachines} />}
-                {activeTab === "threats" && <ActiveThreatsTable data={views.activeThreatMachines} />}
-                {/* {activeTab === "oldScan" && <OldScanTable data={views.oldScanMachines} />} */}
-                {activeTab === "userDevices" && <UserDeviceTable data={views.userWiseDeviceMapping} />}
-                {activeTab === "siteHealth" && <SiteHealthTable data={views.siteWiseSecurityHealthScore} />}
-                {/* {activeTab === "osOutdated" && <OsOutdatedTable data={views.osWiseOutdatedSystems} />} */}
-                {/* {activeTab === "network" && <NetworkStatusTable data={views.networkStatusDistribution} />} */}
-                {activeTab === "risky" && <TopRiskyTable data={views.topRiskyEndpoints} />}
-            </div>
+            
 
             {/* Inactive analytics widgets */}
             <InactiveDashboardWidgets data={views.inactiveOlderThan7Days} />
@@ -1142,3 +1130,18 @@ export default function S1Agent() {
         </div>
     );
 }
+
+
+// {/* Tab content */}
+//             <div>
+//                 {activeTab === "inactive" && <InactiveMachinesTable data={views.inactiveOlderThan7Days} />}
+//                 {/* {activeTab === "oldAgent" && <OldAgentTable data={views.oldAgentVersionMachines} />} */}
+//                 {activeTab === "firewall" && <FirewallDisabledTable data={views.firewallDisabledMachines} />}
+//                 {activeTab === "threats" && <ActiveThreatsTable data={views.activeThreatMachines} />}
+//                 {/* {activeTab === "oldScan" && <OldScanTable data={views.oldScanMachines} />} */}
+//                 {activeTab === "userDevices" && <UserDeviceTable data={views.userWiseDeviceMapping} />}
+//                 {activeTab === "siteHealth" && <SiteHealthTable data={views.siteWiseSecurityHealthScore} />}
+//                 {/* {activeTab === "osOutdated" && <OsOutdatedTable data={views.osWiseOutdatedSystems} />} */}
+//                 {/* {activeTab === "network" && <NetworkStatusTable data={views.networkStatusDistribution} />} */}
+//                 {activeTab === "risky" && <TopRiskyTable data={views.topRiskyEndpoints} />}
+            // </div>
