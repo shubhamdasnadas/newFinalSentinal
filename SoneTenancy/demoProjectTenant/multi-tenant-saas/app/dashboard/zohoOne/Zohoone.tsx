@@ -749,7 +749,7 @@ const Zohoone = () => {
       <TicketListCard tickets={tickets} loading={loading} />
       <TicketVolcanoGraph tickets={tickets} />
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        <Circlemember tickets={tickets} />
+        <Circlemember tickets={tickets}/>
         <Mttrcard tickets={tickets} />
         <Topperformance tickets={tickets} />
       </div>
@@ -871,16 +871,16 @@ const Zohoone = () => {
           </div>
         </section>
 
-        <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm">
+        <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 shadow-sm">
           <div className="mb-5">
             <h2 className="text-xl font-bold text-[var(--foreground)]">Department Based Resolution Time Heatmap</h2>
             {/* <p className="mt-2 text-sm text-[var(--muted)]">Closed tickets by resolution time.</p> */}
           </div>
 
-          <div className="rounded-lg border border-[var(--card-border)] bg-[var(--muted-bg)] p-4">
+          <div className="rounded-lg border border-[var(--card-border)] bg-[var(--muted-bg)] p-2">
             {departmentAgingMatrix.length ? (
               <div className="space-y-4">
-                <div className="hidden grid-cols-[minmax(150px,1.4fr)_repeat(5,minmax(72px,1fr))] gap-2 text-xs font-semibold text-[var(--muted)] md:grid">
+                <div className="hidden grid-cols-[minmax(120px,1.4fr)_repeat(5,minmax(72px,1fr))] gap-1 text-xs font-semibold text-[var(--muted)] md:grid">
                   <div>Department</div>
                   {agingBuckets.map((bucket) => (
                     <div key={bucket} className="text-center">
@@ -892,9 +892,9 @@ const Zohoone = () => {
                 {departmentAgingMatrix.map((row) => (
                   <div
                     key={row.department}
-                    className="grid gap-2 md:grid-cols-[minmax(150px,1.4fr)_repeat(5,minmax(72px,1fr))]"
+                    className="grid gap-1 md:grid-cols-[minmax(120px,1.4fr)_repeat(5,minmax(72px,1fr))]"
                   >
-                    <div className="flex items-center rounded-md bg-[var(--card-bg)] px-3 py-2 text-sm font-semibold text-[var(--foreground)]">
+                    <div className="flex items-center rounded-md bg-[var(--card-bg)] px-2 py-2 text-sm font-semibold text-[var(--foreground)]">
                       {row.department}
                     </div>
 
