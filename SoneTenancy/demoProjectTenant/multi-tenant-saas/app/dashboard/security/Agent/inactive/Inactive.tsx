@@ -339,12 +339,12 @@ export function InactiveDashboardWidgets({ data }: { data: InactiveMachine[] }) 
     return (
         <div className="space-y-4">
             {/* Row 1: KPI + status summary cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
                 <InactiveTotalKPI count={data.length} />
                 <AvgInactiveDaysKPI data={data} />
-                <StatusMiniCard label="7–14d"  count={b714}    color="text-yellow-600 dark:text-yellow-400" />
+                {/*<StatusMiniCard label="7–14d"  count={b714}    color="text-yellow-600 dark:text-yellow-400" />
                 <StatusMiniCard label="15–30d" count={b1530}   color="text-orange-600 dark:text-orange-400" />
-                <StatusMiniCard label="30+d"   count={b30plus} color="text-red-600 dark:text-red-400" />
+                <StatusMiniCard label="30+d"   count={b30plus} color="text-red-600 dark:text-red-400" />*/}
             </div>
             {/* Row 2: Donut + Oldest list */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -355,10 +355,10 @@ export function InactiveDashboardWidgets({ data }: { data: InactiveMachine[] }) 
             {/* Row 3: Site bar + User bar */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-                <UserOwnershipChart data={data} />
+                {/* <UserOwnershipChart data={data} /> */}
             </div>
             {/* Row 4: Timeline */}
-            <LastActiveTimeline data={data} />
+            {/* <LastActiveTimeline data={data} /> */}
         </div>
     );
 }

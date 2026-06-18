@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { InactiveDashboardWidgets } from "../Agent/inactive/Inactive";
 import { UserDeviceDashboardWidgets } from "../Agent/userdevice/UserDevice";
-import Riskyendpoint from "../Agent/Riskyendpoint/Riskyendpoint";
-
 
 // ─── Raw agent shape from /api/sentinelone/sentinalone_agentinfo ───────────────
 interface RawAgent {

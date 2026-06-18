@@ -188,10 +188,10 @@ export function UserDeviceDashboardWidgets({ data }: { data: UserDeviceMapping[]
         <div className="space-y-4">
             {/* Row 2: Donut + Bar chart */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <ActiveInactiveDonut active={totalActive} inactive={totalInactive} />
-                <TopUsersByDeviceChart data={data} />
-                 <TotalDevicesKPI total={totalDevices} />
-                <FleetHealthKPI active={totalActive} total={totalDevices} />
+                {/* <ActiveInactiveDonut active={totalActive} inactive={totalInactive} /> */}
+                {/* <TopUsersByDeviceChart data={data} /> */}
+                 {/* <TotalDevicesKPI total={totalDevices} /> */}
+                {/* <FleetHealthKPI active={totalActive} total={totalDevices} /> */}
             </div>
 
             {/* Row 1: KPI cards */}
