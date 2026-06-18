@@ -117,7 +117,7 @@ const Topperformance = ({ tickets }: { tickets: performanceData[] }) => {
 
         return Object.values(engineerMap)
             .sort((a, b) => a.totalHours - b.totalHours)
-            .slice(0, 10);
+            .slice(0, 5);
     }, [tickets]);
 
     const getScore = (hours: number, count: number) => {
@@ -152,7 +152,7 @@ const Topperformance = ({ tickets }: { tickets: performanceData[] }) => {
                 </p>
             </div>
 
-            <div className="p-4">
+            <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
                 <div className="overflow-hidden rounded-xl border border-[var(--card-border)]">
                     <table className="w-full text-sm border-collapse">
                         <thead className="bg-[var(--muted-bg)]">
