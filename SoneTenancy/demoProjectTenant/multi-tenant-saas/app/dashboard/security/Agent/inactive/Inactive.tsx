@@ -347,13 +347,14 @@ export function InactiveDashboardWidgets({ data }: { data: InactiveMachine[] }) 
                 <StatusMiniCard label="30+d"   count={b30plus} color="text-red-600 dark:text-red-400" />
             </div>
             {/* Row 2: Donut + Oldest list */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <SeverityDonutChart data={data} />
                 <OldestInactiveList data={data} />
+                  <InactiveBySiteChart data={data} />
             </div>
             {/* Row 3: Site bar + User bar */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InactiveBySiteChart data={data} />
+              
                 <UserOwnershipChart data={data} />
             </div>
             {/* Row 4: Timeline */}
