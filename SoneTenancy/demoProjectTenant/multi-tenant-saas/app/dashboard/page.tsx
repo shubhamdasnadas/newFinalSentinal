@@ -297,6 +297,10 @@ export default function DashboardPage() {
   const [s1Syncing, setS1Syncing] = useState(false);
   const [s1SyncMsg, setS1SyncMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
+  // -- News feed ---------------------------------------------------------------
+  const [newsArticles, setNewsArticles] = useState<any[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+
   // -- Grid layout --------------------------------------------------------------
   const [boxes, setBoxes] = useState<BoxLayout[]>(DEFAULT_BOXES);
   const [layoutLoaded, setLayoutLoaded] = useState(false);
@@ -434,6 +438,16 @@ export default function DashboardPage() {
   }, []);
 
   // -- ALL HOOKS BEFORE EARLY RETURNS ------------------------------------------
+
+  // Fetch cybersecurity news once on mount
+  useEffect(() => {
+    setNewsLoading(true);
+    fetch("http://localhost:8000/news?q=cybersecurity&page_size=10")
+      .then(r => r.json())
+      .then(d => setNewsArticles(Array.isArray(d.articles) ? d.articles : []))
+      .catch(() => setNewsArticles([]))
+      .finally(() => setNewsLoading(false));
+  }, []);
 
   // Keep refs in sync with state so persistLayout always writes the latest values
   useEffect(() => { visibleS1WidgetsRef.current = visibleS1Widgets; }, [visibleS1Widgets]);
@@ -1248,6 +1262,9 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ----------------- CYBERSECURITY NEWS ----------------- */}
+      
+
       {/* ----------------- SECTION MAPPING ----------------- */}
       <div className="flex flex-col divide-y divide-[var(--card-border)]">
         {sectionOrder.map((section) => {
@@ -1808,6 +1825,7 @@ export default function DashboardPage() {
             );
           }
 
+          
           /* --------- FIREWALL --------- */
           return (
             <div
@@ -1894,7 +1912,85 @@ export default function DashboardPage() {
           );
         })}
       </div>
+
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-1.5 h-7 rounded-full bg-gradient-to-b from-blue-400 to-blue-600 flex-shrink-0 shadow-sm" />
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9.5a2 2 0 00-.586-1.414l-4.5-4.5A2 2 0 0014.5 3H12" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest leading-none">Live Feed</p>
+              <h2 className="text-sm font-bold text-[var(--foreground)] leading-tight">Cybersecurity News</h2>
+            </div>
+          </div>
+          <div className="flex-1 h-px bg-gradient-to-r from-blue-200 via-[var(--card-border)] to-transparent dark:from-blue-800" />
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {newsLoading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-3 flex gap-3 animate-pulse">
+                  <div className="w-24 h-16 rounded-xl bg-[var(--muted-bg)] flex-shrink-0" />
+                  <div className="flex-1 space-y-2 py-1">
+                    <div className="h-3 bg-[var(--muted-bg)] rounded w-1/4" />
+                    <div className="h-4 bg-[var(--muted-bg)] rounded w-3/4" />
+                    <div className="h-3 bg-[var(--muted-bg)] rounded w-1/3" />
+                  </div>
+                </div>
+              ))
+            : newsArticles.map((article, i) => {
+                const diffMs = Date.now() - new Date(article.publishedAt).getTime();
+                const h = Math.floor(diffMs / 3_600_000);
+                const timeLabel = h < 1 ? `${Math.floor(diffMs / 60000)}m ago` : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+                return (
+                  <a
+                    key={i}
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-3 flex gap-3 hover:border-blue-400 hover:shadow-md transition-all"
+                  >
+                    {/* Thumbnail */}
+                    <div className="w-24 h-16 rounded-xl bg-[var(--muted-bg)] overflow-hidden flex-shrink-0 flex items-center justify-center">
+                      {article.urlToImage ? (
+                        <img
+                          src={article.urlToImage}
+                          alt=""
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      ) : (
+                        <svg className="w-6 h-6 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9.5a2 2 0 00-.586-1.414l-4.5-4.5A2 2 0 0014.5 3H12" />
+                        </svg>
+                      )}
+                    </div>
+                    {/* Text */}
+                    <div className="flex flex-col justify-center min-w-0">
+                      <h3 className="text-sm font-bold text-[var(--foreground)] leading-snug line-clamp-2 group-hover:text-blue-500 transition-colors mb-1">
+                        {article.title}
+                      </h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-semibold text-blue-500 uppercase tracking-wide truncate max-w-[140px]">
+                          {article.source?.name || "Unknown"}
+                        </span>
+                        <span className="text-[10px] text-[var(--muted)]">{timeLabel}</span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+        </div>
+      </div>
     </div>
+
+    
+
+    
   );
 }
 
