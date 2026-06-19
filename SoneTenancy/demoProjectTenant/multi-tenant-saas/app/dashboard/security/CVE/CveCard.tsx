@@ -307,7 +307,7 @@ const CveCard = () => {
         <StatCard title="Avg Score" value={dashboardData.avgScore} />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
         <ChartCard title="Severity Distribution">
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
@@ -350,24 +350,7 @@ const CveCard = () => {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Estimate Status">
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie
-                data={dashboardData.estimateStatus}
-                dataKey="value"
-                nameKey="name"
-                outerRadius={95}
-              >
-                {dashboardData.estimateStatus.map((item, index) => (
-                  <Cell key={index} fill={item.fill} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={tooltipStyle} />
-              <Legend wrapperStyle={{ color: "var(--muted)", fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
+        
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">

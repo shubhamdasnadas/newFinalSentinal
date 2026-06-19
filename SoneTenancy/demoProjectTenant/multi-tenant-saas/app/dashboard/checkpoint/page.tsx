@@ -5,26 +5,8 @@ import {
   BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface HarmonyEvent {
-  eventId: string;
-  customerId: string;
-  type: string;
-  state: string;
-  severity: string;
-  confidenceIndicator: string;
-  description: string;
-  senderAddress?: string;
-  saas?: string;
-  entityId?: string;
-  entityLink?: string;
-  eventCreated: string;
-  actions: string[];
-  additionalData?: unknown;
-  availableEventActions?: unknown;
-  data?: string;
-}
+import CheckpointDashboard from "./CheckpointDashboard/CheckpointDashboard";
+import type { HarmonyEvent } from "./CheckpointDashboard/CheckpointDashboard";
 
 interface ThreatSummary {
   total: number;
@@ -828,6 +810,9 @@ export default function CheckpointPage() {
               )}
             </div>
           </div>
+
+          {/* ── Analytics widgets ────────────────────────────────────────────── */}
+          <CheckpointDashboard events={events} />
 
           {/* ── Security Events table ────────────────────────────────────────── */}
           <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden shadow-sm">
