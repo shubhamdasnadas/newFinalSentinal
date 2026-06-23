@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -319,6 +319,8 @@ export default function CheckpointPage() {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [harmonyClientId, setHarmonyClientId] = useState("");
+  const [harmonyAccessKey, setHarmonyAccessKey] = useState("");
 
   // only one card open at a time — store the key of the open card (or null)
   const [openCard, setOpenCard] = useState<string | null>(null);
@@ -410,14 +412,52 @@ export default function CheckpointPage() {
 
   useEffect(() => { loadFromDb(); }, []);
 
-  // ── Sync from Checkpoint API → save to DB → reload ───────────────────────
-  const handleSync = async () => {
-    const harmonyToken =
-      typeof window !== "undefined" ? localStorage.getItem("harmony_token") : null;
+  // Load Harmony credentials from org DB on mount; also write to localStorage
+  // so the existing loadFromDb auto-sync logic continues to work.
+  useEffect(() => {
+    fetch("/api/harmony/credentials", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => {
+        if (d.clientId) {
+          setHarmonyClientId(d.clientId);
+          localStorage.setItem("harmony_client_id", d.clientId);
+        }
+        if (d.accessKey) {
+          setHarmonyAccessKey(d.accessKey);
+          localStorage.setItem("harmony_access_key", d.accessKey);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
-    if (!harmonyToken) {
-      setSyncMsg({ text: "No Harmony token found. Please sync in Settings first.", ok: false });
-      return;
+  // ── Sync from Checkpoint API → save to DB → reload ───────────────────────
+  // Gets a fresh token if the cached one is missing or expired, then syncs.
+  const handleSync = async () => {
+    let harmonyToken =
+      typeof window !== "undefined" ? localStorage.getItem("harmony_token") : null;
+    const tokenExpiry =
+      typeof window !== "undefined" ? localStorage.getItem("harmony_token_expiry") : null;
+
+    if (!harmonyToken || !tokenExpiry || Date.now() > Number(tokenExpiry)) {
+      if (!harmonyClientId || !harmonyAccessKey) {
+        setSyncMsg({ text: "No Harmony credentials found. Please save them in Settings first.", ok: false });
+        return;
+      }
+      try {
+        const authRes = await fetch("/api/harmony/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: harmonyClientId, accessKey: harmonyAccessKey }),
+        });
+        const authData = await authRes.json();
+        if (!authRes.ok || !authData.token) throw new Error(authData?.error ?? "Auth failed");
+        harmonyToken = authData.token;
+        localStorage.setItem("harmony_token", authData.token);
+        localStorage.setItem("harmony_token_expiry", String(Date.now() + 30 * 60 * 1000));
+      } catch (err: unknown) {
+        setSyncMsg({ text: err instanceof Error ? err.message : "Re-authentication failed.", ok: false });
+        return;
+      }
     }
 
     setSyncing(true);
@@ -442,6 +482,23 @@ export default function CheckpointPage() {
       setSyncing(false);
     }
   };
+
+  // Always keep the ref pointing at the latest handleSync so the interval
+  // callback never captures a stale closure over harmonyClientId / harmonyAccessKey.
+  const syncFnRef = useRef(handleSync);
+  useEffect(() => { syncFnRef.current = handleSync; });
+
+  // Periodic auto-sync — fires every 15 minutes, skips if a sync is already running.
+  const inFlightRef = useRef(false);
+  useEffect(() => {
+    const id = setInterval(async () => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      try { await syncFnRef.current(); }
+      finally { inFlightRef.current = false; }
+    }, 15 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const toggleCard = (key: string) =>
     setOpenCard((prev) => (prev === key ? null : key));
@@ -606,6 +663,10 @@ export default function CheckpointPage() {
                 {syncMsg.text}
               </p>
             )}
+            <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Auto-syncs every 15 min
+            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 type ApiStatus = "idle" | "running" | "done" | "error";
 
@@ -10,6 +10,8 @@ interface ApiResult {
   message: string;
   count?: number;
 }
+
+const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // ✅ FIXED: paths now exactly match your folder names with underscores
 const SYNC_APIS = [
@@ -29,6 +31,18 @@ export default function SentinelOneSync() {
   const [message, setMessage] = useState("");
   const [data, setData] = useState<any>(null);
   const [apiResults, setApiResults] = useState<ApiResult[]>([]);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+
+  // Load saved credentials from the org DB on mount
+  useEffect(() => {
+    fetch("/api/sentinelone/credentials", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => {
+        if (d.accountId) setAccountID(d.accountId);
+        if (d.tokenKey) setTokenKey(d.tokenKey);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSentinelSync = async () => {
     if (!accountID.trim() || !tokenKey.trim()) {
@@ -36,6 +50,14 @@ export default function SentinelOneSync() {
       setMessage("Please enter Account ID and Token Key.");
       return;
     }
+
+    // Persist credentials to the org DB so auto-sync can reuse them across sessions
+    fetch("/api/sentinelone/credentials", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ accountId: accountID.trim(), tokenKey: tokenKey.trim() }),
+    }).catch(() => {});
 
     try {
       setStatus("running");
@@ -115,12 +137,30 @@ export default function SentinelOneSync() {
           ? "Sync completed with some errors. Check details below."
           : "All SentinelOne data synced successfully."
       );
+      if (!hasError) setLastSyncedAt(new Date());
     } catch (error: any) {
       console.error("SentinelOne Sync Error:", error);
       setStatus("error");
       setMessage(error?.message || "SentinelOne sync failed.");
     }
   };
+
+  // Always keep the ref pointing at the latest handleSentinelSync so the
+  // interval callback never captures a stale closure over accountID / tokenKey.
+  const syncFnRef = useRef(handleSentinelSync);
+  useEffect(() => { syncFnRef.current = handleSentinelSync; });
+
+  // Periodic auto-sync — fires every 5 minutes, skips if a sync is already running.
+  const inFlightRef = useRef(false);
+  useEffect(() => {
+    const id = setInterval(async () => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      try { await syncFnRef.current(); }
+      finally { inFlightRef.current = false; }
+    }, AUTO_SYNC_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
@@ -160,7 +200,7 @@ export default function SentinelOneSync() {
           />
         </div>
 
-        {/* Sync Button */}
+        {/* Sync Button + auto-sync status */}
         <div className="flex items-center gap-4">
           <button
             onClick={handleSentinelSync}
@@ -181,6 +221,17 @@ export default function SentinelOneSync() {
               }`}
             >
               {message}
+            </span>
+          )}
+        </div>
+
+        {/* Auto-sync indicator */}
+        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+          Auto-syncs every 5 min
+          {lastSyncedAt && (
+            <span>
+              · Last synced {lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
         </div>
