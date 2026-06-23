@@ -82,8 +82,8 @@ export default function SettingsPage() {
       const token: string = authData.token;
 
       // Cache token with 30-min expiry for reuse elsewhere in the app
-      localStorage.setItem("harmony_token", token);
-      localStorage.setItem("harmony_token_expiry", String(Date.now() + 30 * 60 * 1000));
+      // localStorage.setItem("harmony_token", token);
+      // localStorage.setItem("harmony_token_expiry", String(Date.now() + 30 * 60 * 1000));
 
       // Save clientId, accessKey, and token to the org DB
       fetch("/api/harmony/credentials", {
