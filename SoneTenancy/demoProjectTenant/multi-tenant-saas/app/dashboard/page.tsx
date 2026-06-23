@@ -20,6 +20,7 @@ import {
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import ZohoDashboard from "../components/ZohoDashboard";
+import { useDashboardData } from "@/app/context/DashboardContext";
 type SectionKey = "checkpoint" | "sentinelone" | "firewall";
 // --- Constants ----------------------------------------------------------------
 const FIREWALL_REPORTS = [
@@ -251,7 +252,7 @@ function S1ConfigWidget({
 // --- Main Page ----------------------------------------------------------------
 export default function DashboardPage() {
   const { activeOrgSlug } = useAuth();
-
+  const data = useDashboardData();
   // -- SentinelOne -------------------------------------------------------------
   const [s1Data, setS1Data] = useState<any[]>([]);
   const [s1Loading, setS1Loading] = useState(false);
@@ -880,6 +881,13 @@ export default function DashboardPage() {
 
   return (
     <div className="p-3 sm:p-5 lg:p-6">
+      <div>
+        <h2>SentinelOne Data</h2>
+
+        <pre>
+          {JSON.stringify(data?.sentinel, null, 2)}
+        </pre>
+      </div>
       {/* -- Header ----------------------------------------------------------- */}
       <div className="flex items-center justify-between gap-3 mb-5">
         <div>
@@ -1263,7 +1271,7 @@ export default function DashboardPage() {
       )}
 
       {/* ----------------- CYBERSECURITY NEWS ----------------- */}
-      
+
 
       {/* ----------------- SECTION MAPPING ----------------- */}
       <div className="flex flex-col divide-y divide-[var(--card-border)]">
@@ -1825,7 +1833,7 @@ export default function DashboardPage() {
             );
           }
 
-          
+
           /* --------- FIREWALL --------- */
           return (
             <div
@@ -1933,64 +1941,64 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-3">
           {newsLoading
             ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-3 flex gap-3 animate-pulse">
-                  <div className="w-24 h-16 rounded-xl bg-[var(--muted-bg)] flex-shrink-0" />
-                  <div className="flex-1 space-y-2 py-1">
-                    <div className="h-3 bg-[var(--muted-bg)] rounded w-1/4" />
-                    <div className="h-4 bg-[var(--muted-bg)] rounded w-3/4" />
-                    <div className="h-3 bg-[var(--muted-bg)] rounded w-1/3" />
-                  </div>
+              <div key={i} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-3 flex gap-3 animate-pulse">
+                <div className="w-24 h-16 rounded-xl bg-[var(--muted-bg)] flex-shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="h-3 bg-[var(--muted-bg)] rounded w-1/4" />
+                  <div className="h-4 bg-[var(--muted-bg)] rounded w-3/4" />
+                  <div className="h-3 bg-[var(--muted-bg)] rounded w-1/3" />
                 </div>
-              ))
+              </div>
+            ))
             : newsArticles.map((article, i) => {
-                const diffMs = Date.now() - new Date(article.publishedAt).getTime();
-                const h = Math.floor(diffMs / 3_600_000);
-                const timeLabel = h < 1 ? `${Math.floor(diffMs / 60000)}m ago` : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
-                return (
-                  <a
-                    key={i}
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-3 flex gap-3 hover:border-blue-400 hover:shadow-md transition-all"
-                  >
-                    {/* Thumbnail */}
-                    <div className="w-24 h-16 rounded-xl bg-[var(--muted-bg)] overflow-hidden flex-shrink-0 flex items-center justify-center">
-                      {article.urlToImage ? (
-                        <img
-                          src={article.urlToImage}
-                          alt=""
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                        />
-                      ) : (
-                        <svg className="w-6 h-6 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9.5a2 2 0 00-.586-1.414l-4.5-4.5A2 2 0 0014.5 3H12" />
-                        </svg>
-                      )}
+              const diffMs = Date.now() - new Date(article.publishedAt).getTime();
+              const h = Math.floor(diffMs / 3_600_000);
+              const timeLabel = h < 1 ? `${Math.floor(diffMs / 60000)}m ago` : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+              return (
+                <a
+                  key={i}
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-3 flex gap-3 hover:border-blue-400 hover:shadow-md transition-all"
+                >
+                  {/* Thumbnail */}
+                  <div className="w-24 h-16 rounded-xl bg-[var(--muted-bg)] overflow-hidden flex-shrink-0 flex items-center justify-center">
+                    {article.urlToImage ? (
+                      <img
+                        src={article.urlToImage}
+                        alt=""
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : (
+                      <svg className="w-6 h-6 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9.5a2 2 0 00-.586-1.414l-4.5-4.5A2 2 0 0014.5 3H12" />
+                      </svg>
+                    )}
+                  </div>
+                  {/* Text */}
+                  <div className="flex flex-col justify-center min-w-0">
+                    <h3 className="text-sm font-bold text-[var(--foreground)] leading-snug line-clamp-2 group-hover:text-blue-500 transition-colors mb-1">
+                      {article.title}
+                    </h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-semibold text-blue-500 uppercase tracking-wide truncate max-w-[140px]">
+                        {article.source?.name || "Unknown"}
+                      </span>
+                      <span className="text-[10px] text-[var(--muted)]">{timeLabel}</span>
                     </div>
-                    {/* Text */}
-                    <div className="flex flex-col justify-center min-w-0">
-                      <h3 className="text-sm font-bold text-[var(--foreground)] leading-snug line-clamp-2 group-hover:text-blue-500 transition-colors mb-1">
-                        {article.title}
-                      </h3>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-semibold text-blue-500 uppercase tracking-wide truncate max-w-[140px]">
-                          {article.source?.name || "Unknown"}
-                        </span>
-                        <span className="text-[10px] text-[var(--muted)]">{timeLabel}</span>
-                      </div>
-                    </div>
-                  </a>
-                );
-              })}
+                  </div>
+                </a>
+              );
+            })}
         </div>
       </div>
     </div>
 
-    
 
-    
+
+
   );
 }
 
