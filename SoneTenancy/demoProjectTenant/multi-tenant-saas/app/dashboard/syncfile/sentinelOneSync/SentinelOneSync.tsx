@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 type ApiStatus = "idle" | "running" | "done" | "error";
 
@@ -10,8 +10,6 @@ interface ApiResult {
   message: string;
   count?: number;
 }
-
-const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // ✅ FIXED: paths now exactly match your folder names with underscores
 const SYNC_APIS = [
@@ -40,6 +38,7 @@ export default function SentinelOneSync() {
       .then(d => {
         if (d.accountId) setAccountID(d.accountId);
         if (d.tokenKey) setTokenKey(d.tokenKey);
+        if (d.lastSyncedAt) setLastSyncedAt(new Date(d.lastSyncedAt));
       })
       .catch(() => {});
   }, []);
@@ -145,29 +144,17 @@ export default function SentinelOneSync() {
     }
   };
 
-  // Always keep the ref pointing at the latest handleSentinelSync so the
-  // interval callback never captures a stale closure over accountID / tokenKey.
-  const syncFnRef = useRef(handleSentinelSync);
-  useEffect(() => { syncFnRef.current = handleSentinelSync; });
-
-  // Periodic auto-sync — fires every 5 minutes, skips if a sync is already running.
-  const inFlightRef = useRef(false);
-  useEffect(() => {
-    const id = setInterval(async () => {
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
-      try { await syncFnRef.current(); }
-      finally { inFlightRef.current = false; }
-    }, AUTO_SYNC_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, []);
-
   return (
     <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
       <div className="px-6 py-4 border-b border-[var(--card-border)] bg-[var(--muted-bg)]">
         <h3 className="font-semibold text-[var(--foreground)]">SentinelOne Sync</h3>
         <p className="text-xs text-[var(--muted)] mt-0.5">
           Connect SentinelOne and fetch threats data
+          {lastSyncedAt && (
+            <span className="ml-2">
+              · Last synced: {lastSyncedAt.toLocaleString()}
+            </span>
+          )}
         </p>
       </div>
 
@@ -228,7 +215,7 @@ export default function SentinelOneSync() {
         {/* Auto-sync indicator */}
         <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-          Auto-syncs every 5 min
+          Auto-syncs every 15 min
           {lastSyncedAt && (
             <span>
               · Last synced {lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

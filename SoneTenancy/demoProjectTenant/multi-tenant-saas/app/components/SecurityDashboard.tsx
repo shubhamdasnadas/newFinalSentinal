@@ -70,6 +70,9 @@ export default function SecurityDashboard() {
   // ── Saved widgets (from DB) ─────────────────────────────────────────────────
   const [firewallWidgets, setFirewallWidgets] = useState<any[]>([]);
 
+  // ── S1 last synced timestamp ─────────────────────────────────────────────────
+  const [s1LastSyncedAt, setS1LastSyncedAt] = useState<Date | null>(null);
+
   // ── ALL useEffects BEFORE any early return ──────────────────────────────────
 
   // Load persisted options (no layout needed)
@@ -133,6 +136,14 @@ export default function SecurityDashboard() {
     setSelectedXAxis(prev => prev.length ? prev : [cols[0]]);
     setSelectedYAxis(prev => prev.length ? prev : [numCol]);
   }, [fwRaw]);
+
+  // Load S1 last-synced timestamp from the credentials table
+  useEffect(() => {
+    fetch("/api/sentinelone/credentials", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => { if (d.lastSyncedAt) setS1LastSyncedAt(new Date(d.lastSyncedAt)); })
+      .catch(() => {});
+  }, []);
 
   // ── Persist chart option changes ────────────────────────────────────────────
   const updateState = useCallback((patch: Partial<PageState>) => {
@@ -228,13 +239,29 @@ export default function SecurityDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-[var(--foreground)]">Security Dashboard</h1>
+          <p className="text-sm text-[var(--muted)]">
+            SentinelOne
+            {s1LastSyncedAt && (
+              <span className="ml-2 text-xs">
+                · Last synced: {s1LastSyncedAt.toLocaleString()}
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <button onClick={handleCollect} disabled={collecting}
             className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap">
-            {collecting
-              ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /><span className="hidden sm:inline">Collecting…</span></>
-              : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg><span className="hidden sm:inline">Collect Firewall Data</span><span className="sm:hidden">Collect</span></>}
+            {collecting ? (
+              <>
+                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                Collecting…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Collect Firewall Data
+              </>
+            )}
           </button>
         </div>
       </div>

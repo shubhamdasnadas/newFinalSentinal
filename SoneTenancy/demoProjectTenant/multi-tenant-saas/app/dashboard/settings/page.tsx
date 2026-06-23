@@ -273,15 +273,21 @@ export default function SettingsPage() {
 
         {/* ── Harmony Email & Collaboration Integration ── */}
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-[var(--card-border)] bg-[var(--muted-bg)] flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
-              <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
+          <div className="px-6 py-4 border-b border-[var(--card-border)] bg-[var(--muted-bg)] flex items-center gap-3 justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-[var(--foreground)] leading-tight">Harmony Email &amp; Collaboration</h3>
+                <p className="text-xs text-[var(--muted)] mt-0.5">Check Point — connect to fetch security events</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-[var(--foreground)] leading-tight">Harmony Email &amp; Collaboration</h3>
-              <p className="text-xs text-[var(--muted)] mt-0.5">Check Point — connect to fetch security events</p>
+            <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              auto-sync in 1 minute
             </div>
           </div>
 
@@ -315,6 +321,7 @@ export default function SettingsPage() {
               <p className="text-xs text-[var(--muted)] mt-1.5">
                 Token is valid for 30 minutes after sync. Credentials are stored locally.
               </p>
+              
             </div>
 
             {/* Sync button + status */}
@@ -353,6 +360,33 @@ export default function SettingsPage() {
                   )}
                   {syncMsg}
                 </span>
+              )}
+            </div>
+
+            {/* Auto-sync status indicator */}
+            <div className="flex items-center gap-2 text-xs">
+              {(syncStatus === "auth" || syncStatus === "fetching") ? (
+                <>
+                  <div className="animate-spin w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full flex-shrink-0" />
+                  <span className="text-indigo-600 font-medium">
+                    {syncStatus === "auth" ? "Authenticating with Checkpoint…" : "Fetching & saving events…"}
+                  </span>
+                </>
+              ) : syncStatus === "done" ? (
+                <>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                  <span className="text-green-600 font-medium">Sync complete — auto-syncs every 15 min on the Checkpoint page</span>
+                </>
+              ) : syncStatus === "error" ? (
+                <>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
+                  <span className="text-red-500 font-medium">Sync failed — check credentials and try again</span>
+                </>
+              ) : (
+                <>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                  <span className="text-[var(--muted)]">Auto-syncs every 15 min on the Checkpoint page</span>
+                </>
               )}
             </div>
 
