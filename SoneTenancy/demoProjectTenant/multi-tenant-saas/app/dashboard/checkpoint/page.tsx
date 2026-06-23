@@ -490,22 +490,14 @@ export default function CheckpointPage() {
     }
   };
 
-  // Always keep the ref pointing at the latest handleSync so the interval
-  // callback never captures a stale closure over harmonyClientId / harmonyAccessKey.
-  const syncFnRef = useRef(handleSync);
-  useEffect(() => { syncFnRef.current = handleSync; });
-
-  // Periodic auto-sync — fires every 15 minutes, skips if a sync is already running.
-  const inFlightRef = useRef(false);
+  // Sync immediately when credentials first become available on page open.
+  const hasInitialSynced = useRef(false);
   useEffect(() => {
-    const id = setInterval(async () => {
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
-      try { await syncFnRef.current(); }
-      finally { inFlightRef.current = false; }
-    }, 15 * 60 * 1000);
-    return () => clearInterval(id);
-  }, []);
+    if (harmonyClientId && harmonyAccessKey && !hasInitialSynced.current) {
+      hasInitialSynced.current = true;
+      handleSync();
+    }
+  }, [harmonyClientId, harmonyAccessKey]);
 
   const toggleCard = (key: string) =>
     setOpenCard((prev) => (prev === key ? null : key));

@@ -26,12 +26,13 @@ export async function GET(req: NextRequest) {
 
     await orgQuery(orgSlug, ENSURE_TABLE);
 
-    const rows = await orgQuery<{ credentials: any }>(
+    const rows = await orgQuery<{ credentials: any; updated_at: string }>(
       orgSlug,
-      "SELECT credentials FROM integration_credentials WHERE integration = 'sentinelone' LIMIT 1"
+      "SELECT credentials, updated_at FROM integration_credentials WHERE integration = 'sentinelone' LIMIT 1"
     );
 
-    return NextResponse.json(rows[0]?.credentials ?? {});
+    if (!rows[0]) return NextResponse.json({});
+    return NextResponse.json({ ...rows[0].credentials, lastSyncedAt: rows[0].updated_at });
   } catch (error: any) {
     return NextResponse.json({ message: error.message }, { status: 500 });
   }

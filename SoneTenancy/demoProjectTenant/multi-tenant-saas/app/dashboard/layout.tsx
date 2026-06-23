@@ -3,12 +3,14 @@
 import { useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import TopBar from "../components/TopBar";
+import BackgroundSync from "../components/BackgroundSync";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--background)] transition-colors duration-200">
+      <BackgroundSync />
       {/* Sidebar */}
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
