@@ -57,9 +57,9 @@ export default function SettingsPage() {
       return;
     }
 
-    // Persist credentials locally
-    localStorage.setItem("harmony_client_id", clientId.trim());
-    localStorage.setItem("harmony_access_key", accessKey.trim());
+    // // Persist credentials locally
+    // localStorage.setItem("harmony_client_id", clientId.trim());
+    // localStorage.setItem("harmony_access_key", accessKey.trim());
 
     setSyncData(null);
     setSyncMsg("Step 1: Authenticating...");

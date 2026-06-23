@@ -13,8 +13,8 @@ import { Threats } from './Threats/Threats'
 const SecurityPage = () => {
   return (
     <div>
-      <Threats />
       <SecurityDashboard />
+      <Threats />
       <S1Agent />
       <S1Cve />
       
