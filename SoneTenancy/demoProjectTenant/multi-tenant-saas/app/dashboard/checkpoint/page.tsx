@@ -454,6 +454,13 @@ export default function CheckpointPage() {
         harmonyToken = authData.token;
         localStorage.setItem("harmony_token", authData.token);
         localStorage.setItem("harmony_token_expiry", String(Date.now() + 30 * 60 * 1000));
+        // Update the token in the org DB
+        fetch("/api/harmony/credentials", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ clientId: harmonyClientId, accessKey: harmonyAccessKey, token: authData.token }),
+        }).catch(() => {});
       } catch (err: unknown) {
         setSyncMsg({ text: err instanceof Error ? err.message : "Re-authentication failed.", ok: false });
         return;

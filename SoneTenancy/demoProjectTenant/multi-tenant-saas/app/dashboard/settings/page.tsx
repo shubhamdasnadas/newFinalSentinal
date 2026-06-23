@@ -85,6 +85,14 @@ export default function SettingsPage() {
       localStorage.setItem("harmony_token", token);
       localStorage.setItem("harmony_token_expiry", String(Date.now() + 30 * 60 * 1000));
 
+      // Save clientId, accessKey, and token to the org DB
+      fetch("/api/harmony/credentials", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ clientId: clientId.trim(), accessKey: accessKey.trim(), token }),
+      }).catch(() => {});
+
       // ── Step 2: Sync events → save to org database ───────────────────────────
       setSyncMsg("Step 2: Fetching & saving events to database...");
       setSyncStatus("fetching");
