@@ -65,12 +65,13 @@ export async function POST(req: NextRequest) {
     const orgSlug = getOrgSlug(user);
     if (!orgSlug) return NextResponse.json({ message: "No active organization" }, { status: 400 });
 
-    const baseUrl = process.env.S1_BASE_URL?.replace(/\/$/, "");
-    const apiToken = process.env.S1_API_TOKEN;
+    const body = await req.json().catch(() => ({}));
+    const baseUrl = (body.baseUrl || process.env.S1_BASE_URL)?.replace(/\/$/, "");
+    const apiToken = body.tokenKey || process.env.S1_API_TOKEN;
 
     if (!baseUrl || !apiToken) {
       return NextResponse.json(
-        { message: "SentinelOne not configured — S1_BASE_URL or S1_API_TOKEN missing" },
+        { message: "SentinelOne not configured — provide tokenKey/baseUrl in body or set S1_BASE_URL/S1_API_TOKEN" },
         { status: 503 }
       );
     }

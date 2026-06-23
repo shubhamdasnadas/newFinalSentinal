@@ -367,9 +367,9 @@ export const Threats = () => {
     const dayData: Record<string, { sum: number; count: number }> = {};
     for (const t of threats) {
       const created = parseDate(t.threatInfo?.createdAt);
-      console.log(created)
+      //console.log(created)
       const identified = parseDate(t.threatInfo?.identifiedAt);
-      console.log(identified)
+      //console.log(identified)
       if (!created || !identified || created <= identified) continue;
       const key = created.toISOString().slice(0, 10);
       const minutes = (created.getTime() - identified.getTime()) / 60000;

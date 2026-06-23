@@ -74,15 +74,30 @@ export async function POST(req: NextRequest) {
     const orgSlug = getOrgSlug(user);
     if (!orgSlug) return NextResponse.json({ message: "No active organization" }, { status: 400 });
 
-    const baseUrl = process.env.FIREWALL_BASE_URL;
-    const apiKey  = process.env.FIREWALL_API_KEY;
+    // Credentials: body → DB → env vars
+    const body = await req.json().catch(() => ({}));
+    let baseUrl: string | undefined = body.baseUrl;
+    let apiKey: string | undefined = body.apiKey;
 
-    console.log("[FW] FIREWALL_BASE_URL:", baseUrl ? baseUrl : "NOT SET");
+    if (!baseUrl || !apiKey) {
+      const rows = await orgQuery<{ credentials: { baseUrl: string; apiKey: string } }>(
+        orgSlug,
+        "SELECT credentials FROM integration_credentials WHERE integration = 'firewall' LIMIT 1"
+      ).catch(() => [] as { credentials: { baseUrl: string; apiKey: string } }[]);
+      const creds = rows[0]?.credentials;
+      if (!baseUrl) baseUrl = creds?.baseUrl;
+      if (!apiKey) apiKey = creds?.apiKey;
+    }
+
+    baseUrl = baseUrl || process.env.FIREWALL_BASE_URL;
+    apiKey  = apiKey  || process.env.FIREWALL_API_KEY;
+
+    console.log("[FW] FIREWALL_BASE_URL:", baseUrl ?? "NOT SET");
     console.log("[FW] FIREWALL_API_KEY:", apiKey ? `${apiKey.slice(0, 10)}...` : "NOT SET");
 
     if (!baseUrl || !apiKey) {
       return NextResponse.json(
-        { message: "Firewall not configured — FIREWALL_BASE_URL or FIREWALL_API_KEY missing" },
+        { message: "Firewall not configured — save credentials in Settings or set FIREWALL_BASE_URL/FIREWALL_API_KEY" },
         { status: 503 }
       );
     }

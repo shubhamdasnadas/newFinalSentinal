@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useDashboardData } from "../context/DashboardContext";
 import {
   PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -70,8 +71,8 @@ export default function SecurityDashboard() {
   // ── Saved widgets (from DB) ─────────────────────────────────────────────────
   const [firewallWidgets, setFirewallWidgets] = useState<any[]>([]);
 
-  // ── S1 last synced timestamp ─────────────────────────────────────────────────
-  const [s1LastSyncedAt, setS1LastSyncedAt] = useState<Date | null>(null);
+  // ── S1 last synced timestamp (from DashboardContext, updated after each sync) ─
+  const { lastS1SyncedAt: s1LastSyncedAt } = useDashboardData();
 
   // ── ALL useEffects BEFORE any early return ──────────────────────────────────
 
@@ -136,14 +137,6 @@ export default function SecurityDashboard() {
     setSelectedXAxis(prev => prev.length ? prev : [cols[0]]);
     setSelectedYAxis(prev => prev.length ? prev : [numCol]);
   }, [fwRaw]);
-
-  // Load S1 last-synced timestamp from the credentials table
-  useEffect(() => {
-    fetch("/api/sentinelone/credentials", { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { if (d.lastSyncedAt) setS1LastSyncedAt(new Date(d.lastSyncedAt)); })
-      .catch(() => {});
-  }, []);
 
   // ── Persist chart option changes ────────────────────────────────────────────
   const updateState = useCallback((patch: Partial<PageState>) => {
@@ -249,7 +242,7 @@ export default function SecurityDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
-          <button onClick={handleCollect} disabled={collecting}
+          {/* <button onClick={handleCollect} disabled={collecting}
             className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap">
             {collecting ? (
               <>
@@ -262,7 +255,7 @@ export default function SecurityDashboard() {
                 Collect Firewall Data
               </>
             )}
-          </button>
+          </button> */}
         </div>
       </div>
 

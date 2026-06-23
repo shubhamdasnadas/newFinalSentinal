@@ -637,7 +637,7 @@ export default function CheckpointPage() {
           </div>
 
           {/* Sync button */}
-          <div className="flex flex-col items-end gap-1.5">
+          {/* <div className="flex flex-col items-end gap-1.5">
             <button
               onClick={handleSync}
               disabled={syncing}
@@ -656,7 +656,7 @@ export default function CheckpointPage() {
                   Sync from Checkpoint
                 </>
               )}
-            </button>
+            </button> 
             {syncMsg && (
               <p className={`text-xs font-medium ${syncMsg.ok ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
                 {syncMsg.text}
@@ -666,7 +666,7 @@ export default function CheckpointPage() {
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
               Auto-syncs every 15 min
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
 

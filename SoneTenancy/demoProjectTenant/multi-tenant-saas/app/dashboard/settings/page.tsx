@@ -2,7 +2,7 @@
 
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SentinelOneSync from "../syncfile/sentinelOneSync/SentinelOneSync";
 
 export default function SettingsPage() {
@@ -12,6 +12,59 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState(user?.name || "");
   const [accountID, setAccountID] = useState("");
   const [tokenKey, setTokenKey] = useState("");
+
+  // ── Firewall ──────────────────────────────────────────────────────────────────
+  const [fwBaseUrl, setFwBaseUrl] = useState("");
+  const [fwApiKey, setFwApiKey] = useState("");
+  const [fwStatus, setFwStatus] = useState<"idle" | "saving" | "syncing" | "done" | "error">("idle");
+  const [fwMsg, setFwMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/firewall/credentials", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.baseUrl) setFwBaseUrl(d.baseUrl);
+        if (d.apiKey) setFwApiKey(d.apiKey);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleFirewallSync = async () => {
+    if (!fwBaseUrl.trim() || !fwApiKey.trim()) {
+      setFwMsg("Please enter both Base URL and API Key.");
+      setFwStatus("error");
+      return;
+    }
+
+    setFwStatus("saving");
+    setFwMsg("Saving credentials…");
+
+    try {
+      const saveRes = await fetch("/api/firewall/credentials", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ baseUrl: fwBaseUrl.trim(), apiKey: fwApiKey.trim() }),
+      });
+      if (!saveRes.ok) throw new Error("Failed to save credentials");
+
+      setFwStatus("syncing");
+      setFwMsg("Collecting firewall reports…");
+
+      const collectRes = await fetch("/api/firewall/collect", {
+        method: "POST",
+        credentials: "include",
+      });
+      const collectData = await collectRes.json();
+      if (!collectRes.ok) throw new Error(collectData?.message || "Collection failed");
+
+      setFwMsg(`Done — ${collectData.success}/${collectData.total} reports saved.`);
+      setFwStatus("done");
+    } catch (err: unknown) {
+      setFwMsg(err instanceof Error ? err.message : "Sync failed.");
+      setFwStatus("error");
+    }
+  };
   // ── Sync All ──────────────────────────────────────────────────────────────
   const [syncAllStatus, setSyncAllStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const [syncAllResult, setSyncAllResult] = useState<Record<string, unknown> | null>(null);
@@ -410,6 +463,83 @@ export default function SettingsPage() {
           </div>
 
 
+        </div>
+
+        {/* ── Firewall Integration ── */}
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-[var(--card-border)] bg-[var(--muted-bg)] flex items-center gap-3 justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-[var(--foreground)] leading-tight">Palo Alto Firewall</h3>
+                <p className="text-xs text-[var(--muted)] mt-0.5">Connect to collect firewall reports</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              auto-sync every 15 min
+            </div>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">Base URL</label>
+              <input
+                type="text"
+                value={fwBaseUrl}
+                onChange={(e) => setFwBaseUrl(e.target.value)}
+                placeholder="e.g. https://192.168.1.1:443"
+                className="w-full px-4 py-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl text-sm text-[var(--foreground)] font-mono placeholder:font-sans placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">API Key</label>
+              <input
+                type="password"
+                value={fwApiKey}
+                onChange={(e) => setFwApiKey(e.target.value)}
+                placeholder="Palo Alto API key"
+                className="w-full px-4 py-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl text-sm text-[var(--foreground)] font-mono placeholder:font-sans placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+              />
+            </div>
+
+            <div className="flex items-center gap-4 pt-1">
+              <button
+                onClick={handleFirewallSync}
+                disabled={fwStatus === "saving" || fwStatus === "syncing"}
+                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+              >
+                {(fwStatus === "saving" || fwStatus === "syncing") ? (
+                  <>
+                    <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                    {fwStatus === "saving" ? "Saving…" : "Collecting…"}
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Save &amp; Sync Now
+                  </>
+                )}
+              </button>
+              {fwMsg && (
+                <span className={`text-sm font-medium ${fwStatus === "done" ? "text-green-600 dark:text-green-400" : fwStatus === "error" ? "text-red-500" : "text-indigo-600 dark:text-indigo-400"}`}>
+                  {fwMsg}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+              <span className="text-[var(--muted)]">Auto-syncs every 15 min via Dashboard</span>
+            </div>
+          </div>
         </div>
 
             {/* Sentinel One sync */}
