@@ -57,21 +57,9 @@ export default function SettingsPage() {
       return;
     }
 
-<<<<<<< HEAD
     // // Persist credentials locally
     // localStorage.setItem("harmony_client_id", clientId.trim());
     // localStorage.setItem("harmony_access_key", accessKey.trim());
-=======
-    // Persist credentials locally and to the org DB
-    localStorage.setItem("harmony_client_id", clientId.trim());
-    localStorage.setItem("harmony_access_key", accessKey.trim());
-    fetch("/api/harmony/credentials", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ clientId: clientId.trim(), accessKey: accessKey.trim() }),
-    }).catch(() => {});
->>>>>>> 183222f (Auto sync S1+Checkpoint)
 
     setSyncData(null);
     setSyncMsg("Step 1: Authenticating...");
