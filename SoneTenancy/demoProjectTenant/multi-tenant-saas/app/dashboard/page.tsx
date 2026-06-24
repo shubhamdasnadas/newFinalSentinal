@@ -881,13 +881,13 @@ export default function DashboardPage() {
 
   return (
     <div className="p-3 sm:p-5 lg:p-6">
-      <div>
+      {/* <div>
         <h2>SentinelOne Data</h2>
 
         <pre>
-          {JSON.stringify(data?.sentinel, null, 2)}
+          {//JSON.stringify(data?.sentinel, null, 2)}
         </pre>
-      </div>
+      </div> */}
       {/* -- Header ----------------------------------------------------------- */}
       <div className="flex items-center justify-between gap-3 mb-5">
         <div>

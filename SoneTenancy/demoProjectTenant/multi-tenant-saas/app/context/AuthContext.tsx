@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 
 export interface AuthUser {
   userId: string;
@@ -17,6 +16,8 @@ export interface AuthUser {
   activeOrgName?: string;
   activeOrgColor?: string;
   allowedPages?: string[];
+  pendingOrgIds?: string[];
+  memberOrgIds?: string[];
 }
 
 export interface OrgItem {
@@ -71,16 +72,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [orgs, setOrgs] = useState<OrgItem[]>([]);
   const [orgsLoading, setOrgsLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
-  const router = useRouter();
   const orgsLoadedForRole = useRef<string | null>(null);
+  const currentUserRef = useRef<AuthUser | null>(null);
 
   const refreshUser = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
+        currentUserRef.current = data.user;
         setUser(data.user);
       } else {
+        currentUserRef.current = null;
         setUser(null);
       }
     } catch {
@@ -93,7 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshOrgs = useCallback(async () => {
     setOrgsLoading(true);
     try {
-      const res = await fetch("/api/admin/organizations", { credentials: "include" });
+      const isSuperAdmin = currentUserRef.current?.role === "super_admin";
+      const endpoint = isSuperAdmin ? "/api/admin/organizations" : "/api/member/orgs";
+      const res = await fetch(endpoint, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setOrgs(data.orgs || []);
@@ -110,21 +115,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser();
   }, [refreshUser]);
 
-  // Load orgs ONLY for super_admin, and only once per role change
+  // Load orgs for super_admin (all orgs) or multi-org members (their orgs)
   useEffect(() => {
     if (!user) {
       orgsLoadedForRole.current = null;
       setOrgs([]);
       return;
     }
-    if (user.role === "super_admin" && orgsLoadedForRole.current !== "super_admin") {
-      orgsLoadedForRole.current = "super_admin";
+    const isMultiOrgMember = user.role !== "super_admin" && (user.memberOrgIds?.length ?? 0) > 1;
+    const cacheKey = user.role === "super_admin" ? "super_admin" : (isMultiOrgMember ? `member:${user.memberOrgIds?.join(",")}` : null);
+
+    if (cacheKey && orgsLoadedForRole.current !== cacheKey) {
+      orgsLoadedForRole.current = cacheKey;
       refreshOrgs();
-    } else if (user.role !== "super_admin") {
+    } else if (!cacheKey) {
       orgsLoadedForRole.current = null;
       setOrgs([]);
     }
-  }, [user?.role, refreshOrgs]);
+  }, [user?.role, user?.memberOrgIds?.join(","), refreshOrgs]);
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });

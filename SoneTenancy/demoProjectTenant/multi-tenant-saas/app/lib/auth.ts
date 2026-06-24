@@ -16,6 +16,8 @@ export interface TokenPayload {
   activeOrgName?: string;
   activeOrgColor?: string;
   allowedPages?: string[];
+  pendingOrgIds?: string[];
+  memberOrgIds?: string[];
 }
 
 export const signToken = (payload: TokenPayload): string => {

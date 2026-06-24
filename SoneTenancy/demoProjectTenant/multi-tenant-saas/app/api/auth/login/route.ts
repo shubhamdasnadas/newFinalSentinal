@@ -56,33 +56,84 @@ export async function POST(req: Request) {
     }
 
     // ── STEP 2: Try org users — search each active org's own database ─────────
+    // Collect ALL orgs where this email exists, then find the one whose
+    // password hash matches. This handles the same email in multiple orgs.
     const activeOrgs = await OrgModel.findActive();
     const activeSlugs = activeOrgs.map((o) => o.slug);
 
-    const member = await OrgUserModel.findByEmailAcrossOrgs(cleanEmail, activeSlugs);
+    const candidates = await OrgUserModel.findAllByEmailAcrossOrgs(cleanEmail, activeSlugs);
 
-    if (member) {
-      if (!member.is_active) {
-        return NextResponse.json({ message: "Your account has been deactivated." }, { status: 403 });
-      }
-
-      if (member.password) {
-        const isMatch = await bcrypt.compare(password, member.password);
-        if (!isMatch) {
-          return NextResponse.json({ message: "Incorrect password." }, { status: 401 });
+    if (candidates.length > 0) {
+      // Find ALL candidates whose password matches (same email, different orgs)
+      const matchedMembers: (typeof candidates) = [];
+      for (const candidate of candidates) {
+        if (!candidate.is_active) continue;
+        if (candidate.password) {
+          const isMatch = await bcrypt.compare(password, candidate.password);
+          if (isMatch) matchedMembers.push(candidate);
+        } else {
+          matchedMembers.push(candidate);
         }
       }
 
-      const org = await OrgModel.findBySlug(member.org_slug);
+      if (matchedMembers.length === 0) {
+        const anyDeactivated = candidates.some((c) => !c.is_active);
+        if (anyDeactivated && candidates.length === 1) {
+          return NextResponse.json({ message: "Your account has been deactivated." }, { status: 403 });
+        }
+        return NextResponse.json({ message: "Incorrect password." }, { status: 401 });
+      }
+
+      // Resolve org records for all matched members (needed for both paths below)
+      const matchedOrgs = await Promise.all(
+        matchedMembers.map((m) => OrgModel.findBySlug(m.org_slug))
+      );
+      const validOrgs = matchedOrgs.filter(Boolean) as NonNullable<(typeof matchedOrgs)[0]>[];
+      const memberOrgIds = validOrgs.map((o) => o.id);
+
+      // Multiple orgs matched — issue a pending token and let the user choose
+      if (matchedMembers.length > 1) {
+        const pendingToken = signToken({
+          userId: matchedMembers[0].id,
+          email: matchedMembers[0].email,
+          name: matchedMembers[0].name,
+          role: matchedMembers[0].role,
+          pendingOrgIds: memberOrgIds,
+          memberOrgIds,
+        });
+
+        const response = NextResponse.json({
+          pendingOrgs: validOrgs.map((o) => ({
+            _id: o.id,
+            name: o.name,
+            color: o.color,
+            plan: o.plan,
+          })),
+        });
+        response.cookies.set({
+          name: "token",
+          value: pendingToken,
+          httpOnly: true,
+          path: "/",
+          maxAge: 60 * 5, // 5 minutes — just enough to complete org selection
+          sameSite: "lax",
+          secure: false,
+        });
+        return response;
+      }
+
+      // Single match — log straight in
+      const matchedMember = matchedMembers[0];
+      const org = validOrgs[0];
       if (!org) {
         return NextResponse.json({ message: "Organization not found." }, { status: 404 });
       }
 
       const token = signToken({
-        userId: member.id,
-        email: member.email,
-        name: member.name,
-        role: member.role,
+        userId: matchedMember.id,
+        email: matchedMember.email,
+        name: matchedMember.name,
+        role: matchedMember.role,
         orgId: org.id,
         orgSlug: org.slug,
         orgName: org.name,
@@ -92,11 +143,12 @@ export async function POST(req: Request) {
         activeOrgName: org.name,
         activeOrgColor: org.color,
         allowedPages: org.allowed_pages?.length ? org.allowed_pages : ALL_PAGES,
+        memberOrgIds,
       });
 
       const response = NextResponse.json({
         success: true,
-        role: member.role,
+        role: matchedMember.role,
         orgName: org.name,
       });
       setCookie(response, token);

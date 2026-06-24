@@ -60,8 +60,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
             </svg>
           </button>
 
-          {/* Super admin: org switcher dropdown */}
-          {isSuperAdmin && (
+          {/* Org switcher: super admin sees all orgs; multi-org members see their orgs */}
+          {(isSuperAdmin || (isOrgUser && liveOrgs.length > 1)) && (
             <div className="relative" ref={ref}>
               <button
                 onClick={() => setOpen((v) => !v)}
@@ -142,26 +142,29 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                     )}
                   </div>
 
-                  <div className="border-t border-[var(--card-border)] p-2">
-                    <button
-                      onClick={() => { setOpen(false); setShowCreate(true); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--muted-bg)] transition-colors text-left"
-                    >
-                      <span className="w-7 h-7 rounded-lg border-2 border-dashed border-[var(--input-border)] flex items-center justify-center flex-shrink-0">
-                        <svg className="w-3.5 h-3.5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </span>
-                      <span className="text-sm font-medium text-[var(--muted)]">Create organization</span>
-                    </button>
-                  </div>
+                  {/* Only super admins can create orgs */}
+                  {isSuperAdmin && (
+                    <div className="border-t border-[var(--card-border)] p-2">
+                      <button
+                        onClick={() => { setOpen(false); setShowCreate(true); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--muted-bg)] transition-colors text-left"
+                      >
+                        <span className="w-7 h-7 rounded-lg border-2 border-dashed border-[var(--input-border)] flex items-center justify-center flex-shrink-0">
+                          <svg className="w-3.5 h-3.5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </span>
+                        <span className="text-sm font-medium text-[var(--muted)]">Create organization</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* Org user: static badge */}
-          {isOrgUser && activeOrgName && (
+          {/* Single-org users: static badge */}
+          {isOrgUser && liveOrgs.length <= 1 && activeOrgName && (
             <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-[var(--card-border)] text-sm font-medium text-[var(--foreground)]">
               <span
                 className="w-6 h-6 rounded-md flex items-center justify-center text-white text-xs font-bold flex-shrink-0"

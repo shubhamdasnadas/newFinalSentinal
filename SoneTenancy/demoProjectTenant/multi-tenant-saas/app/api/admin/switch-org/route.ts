@@ -8,7 +8,11 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
     const user = verifyToken(token);
-    if (user.role !== "super_admin") {
+
+    const isSuperAdmin = user.role === "super_admin";
+    const isMultiOrgMember = !isSuperAdmin && (user.memberOrgIds?.length ?? 0) > 1;
+
+    if (!isSuperAdmin && !isMultiOrgMember) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
@@ -21,6 +25,11 @@ export async function POST(req: NextRequest) {
       return response;
     }
 
+    // Multi-org members can only switch to orgs they belong to
+    if (isMultiOrgMember && !user.memberOrgIds!.includes(orgId)) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
     const org = await OrgModel.findById(orgId);
     if (!org) return NextResponse.json({ message: "Organization not found" }, { status: 404 });
 
@@ -29,11 +38,16 @@ export async function POST(req: NextRequest) {
       email: user.email,
       name: user.name,
       role: user.role,
+      orgId: org.id,
+      orgSlug: org.slug,
+      orgName: org.name,
+      orgColor: org.color,
       activeOrgId: org.id,
       activeOrgSlug: org.slug,
       activeOrgName: org.name,
       activeOrgColor: org.color,
       allowedPages: org.allowed_pages?.length ? org.allowed_pages : ALL_PAGES,
+      memberOrgIds: user.memberOrgIds, // preserve across switches
     });
 
     const response = NextResponse.json({ success: true, activeOrg: { id: org.id, name: org.name, slug: org.slug } });
