@@ -137,11 +137,9 @@ export async function POST(req: Request) {
         orgId: org.id,
         orgSlug: org.slug,
         orgName: org.name,
-        orgColor: org.color,
         activeOrgId: org.id,
         activeOrgSlug: org.slug,
         activeOrgName: org.name,
-        activeOrgColor: org.color,
         allowedPages: org.allowed_pages?.length ? org.allowed_pages : ALL_PAGES,
         memberOrgIds,
       });
@@ -167,11 +165,9 @@ export async function POST(req: Request) {
         orgId: orgByEmail.id,
         orgSlug: orgByEmail.slug,
         orgName: orgByEmail.name,
-        orgColor: orgByEmail.color,
         activeOrgId: orgByEmail.id,
         activeOrgSlug: orgByEmail.slug,
         activeOrgName: orgByEmail.name,
-        activeOrgColor: orgByEmail.color,
         allowedPages: orgByEmail.allowed_pages?.length ? orgByEmail.allowed_pages : ALL_PAGES,
       });
 

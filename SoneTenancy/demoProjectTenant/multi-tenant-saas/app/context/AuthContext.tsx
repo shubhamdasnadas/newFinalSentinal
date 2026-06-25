@@ -10,11 +10,9 @@ export interface AuthUser {
   orgId?: string;
   orgSlug?: string;
   orgName?: string;
-  orgColor?: string;
   activeOrgId?: string;
   activeOrgSlug?: string;
   activeOrgName?: string;
-  activeOrgColor?: string;
   allowedPages?: string[];
   pendingOrgIds?: string[];
   memberOrgIds?: string[];
@@ -136,9 +134,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    setUser(null);
-    setOrgs([]);
-    orgsLoadedForRole.current = null;
     window.location.href = "/login";
   };
 
@@ -165,8 +160,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const activeOrgSlug = user?.activeOrgSlug || user?.orgSlug || null;
   const activeOrgName = user?.activeOrgName || user?.orgName || null;
   const activeOrgColor =
-    user?.activeOrgColor ||
-    user?.orgColor ||
     orgs.find((o) => o.slug === activeOrgSlug)?.color ||
     null;
 

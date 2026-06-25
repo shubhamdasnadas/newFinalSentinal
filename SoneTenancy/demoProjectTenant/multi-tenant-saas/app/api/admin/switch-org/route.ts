@@ -41,11 +41,9 @@ export async function POST(req: NextRequest) {
       orgId: org.id,
       orgSlug: org.slug,
       orgName: org.name,
-      orgColor: org.color,
       activeOrgId: org.id,
       activeOrgSlug: org.slug,
       activeOrgName: org.name,
-      activeOrgColor: org.color,
       allowedPages: org.allowed_pages?.length ? org.allowed_pages : ALL_PAGES,
       memberOrgIds: user.memberOrgIds, // preserve across switches
     });

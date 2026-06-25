@@ -2,6 +2,7 @@
 
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import useSWR from "swr";
 import { useAuth } from "../context/AuthContext";
 import PCPLDashboard from "../components/PCPLDashboard";
 import CheckpointCards from "../components/CheckpointCards";
@@ -21,6 +22,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import ZohoDashboard from "../components/ZohoDashboard";
 import { useDashboardData } from "@/app/context/DashboardContext";
+import SyncTestWidget from "../components/SyncTestWidget";
 type SectionKey = "checkpoint" | "sentinelone" | "firewall";
 // --- Constants ----------------------------------------------------------------
 const FIREWALL_REPORTS = [
@@ -255,25 +257,25 @@ export default function DashboardPage() {
   const data = useDashboardData();
   // -- SentinelOne -------------------------------------------------------------
   const [s1Data, setS1Data] = useState<any[]>([]);
-  const [s1Loading, setS1Loading] = useState(false);
+  const [s1Loading, setS1Loading] = useState(true);
   const [s1Error, setS1Error] = useState("");
   const [agentData, setAgentData] = useState<any[]>([]);
-  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentLoading, setAgentLoading] = useState(true);
   const [agentError, setAgentError] = useState("");
   const [mitigationChart, setMitigationChart] = useState<"donut" | "probability" | "bar">("donut");
   // -- Extra S1 tables --------------------------------------------------------
   const [appAgentData, setAppAgentData] = useState<any[]>([]);
-  const [appAgentLoading, setAppAgentLoading] = useState(false);
+  const [appAgentLoading, setAppAgentLoading] = useState(true);
   const [appCveData, setAppCveData] = useState<any[]>([]);
-  const [appCveLoading, setAppCveLoading] = useState(false);
+  const [appCveLoading, setAppCveLoading] = useState(true);
   const [deviceControlData, setDeviceControlData] = useState<any[]>([]);
-  const [deviceControlLoading, setDeviceControlLoading] = useState(false);
+  const [deviceControlLoading, setDeviceControlLoading] = useState(true);
   const [rssData, setRssData] = useState<any[]>([]);
-  const [rssLoading, setRssLoading] = useState(false);
+  const [rssLoading, setRssLoading] = useState(true);
 
   // -- Checkpoint Harmony events ----------------------------------------------
   const [cpEvents, setCpEvents] = useState<any[]>([]);
-  const [cpEventsLoading, setCpEventsLoading] = useState(false);
+  const [cpEventsLoading, setCpEventsLoading] = useState(true);
 
   // -- Firewall -----------------------------------------------------------------
   const [fwReport, setFwReport] = useState("bandwidth-trend");
@@ -414,6 +416,13 @@ export default function DashboardPage() {
   );
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Single aggregate fetch — replaces 9 individual client-side fetches (Issue 2)
+  const { data: aggregateData } = useSWR(
+    activeOrgSlug ? "/api/dashboard/aggregate" : null,
+    (url: string) => fetch(url, { credentials: "include" }).then((r) => r.json()),
+    { revalidateOnFocus: false, refreshInterval: 30 * 60 * 1000 }
+  );
+
   useEffect(() => {
     const update = () => {
       const el = containerRef.current;
@@ -455,160 +464,73 @@ export default function DashboardPage() {
   useEffect(() => { s1WidgetConfigsRef.current = s1WidgetConfigs; }, [s1WidgetConfigs]);
   useEffect(() => { visibleCpWidgetsRef.current = visibleCpWidgets; }, [visibleCpWidgets]);
 
-  // Load persisted layout
+  // Hydrate all dashboard state from aggregate endpoint (Issues 2+3)
   useEffect(() => {
-    if (!activeOrgSlug) { setLayoutLoaded(true); return; }
-    fetch("/api/dashboard/layout", { credentials: "include" })
-      .then(r => r.json())
-      .then(d => {
-        const saved = Array.isArray(d.layout?.pgboxes) ? d.layout.pgboxes : [];
-        const merged = normalizeSavedBoxes(saved);
-        setBoxes(merged);
-        // Restore saved section order if valid
-        const savedOrder = d.layout?.sectionOrder;
-        if (
-          Array.isArray(savedOrder) &&
-          savedOrder.length === 3 &&
-          ["checkpoint", "sentinelone", "firewall"].every(k => savedOrder.includes(k))
-        ) {
-          setSectionOrder(savedOrder as SectionKey[]);
-          sectionOrderRef.current = savedOrder as SectionKey[];
-        }
-        // Restore visible widget sets
-        if (Array.isArray(d.layout?.visibleS1Widgets) && d.layout.visibleS1Widgets.length > 0) {
-          setVisibleS1Widgets(d.layout.visibleS1Widgets);
-          visibleS1WidgetsRef.current = d.layout.visibleS1Widgets;
-        }
-        if (d.layout?.s1WidgetConfigs && typeof d.layout.s1WidgetConfigs === "object") {
-          setS1WidgetConfigs(prev => ({ ...prev, ...d.layout.s1WidgetConfigs }));
-          s1WidgetConfigsRef.current = { ...s1WidgetConfigsRef.current, ...d.layout.s1WidgetConfigs };
-        }
-        if (Array.isArray(d.layout?.visibleCpWidgets)) {
-          setVisibleCpWidgets(d.layout.visibleCpWidgets);
-          visibleCpWidgetsRef.current = d.layout.visibleCpWidgets;
-        }
-      })
-      .catch(() => { })
-      .finally(() => setLayoutLoaded(true));
-  }, [activeOrgSlug]);
+    if (!aggregateData) return;
+    const agg = aggregateData;
 
-  // Load saved firewall widgets
-  useEffect(() => {
-    if (!activeOrgSlug) return;
-    fetch("/api/firewall/widgets", { credentials: "include" })
-      .then(r => r.json())
-      .then(d => setFwWidgets(Array.isArray(d.widgets) ? d.widgets : []))
-      .catch(() => setFwWidgets([]));
-  }, [activeOrgSlug]);
+    // Layout
+    if (agg.layout) {
+      const saved = Array.isArray(agg.layout?.pgboxes) ? agg.layout.pgboxes : [];
+      setBoxes(normalizeSavedBoxes(saved));
+      const savedOrder = agg.layout?.sectionOrder;
+      if (Array.isArray(savedOrder) && savedOrder.length === 3 && ["checkpoint", "sentinelone", "firewall"].every((k: string) => savedOrder.includes(k))) {
+        setSectionOrder(savedOrder as SectionKey[]);
+        sectionOrderRef.current = savedOrder as SectionKey[];
+      }
+      if (Array.isArray(agg.layout?.visibleS1Widgets) && agg.layout.visibleS1Widgets.length > 0) {
+        setVisibleS1Widgets(agg.layout.visibleS1Widgets);
+        visibleS1WidgetsRef.current = agg.layout.visibleS1Widgets;
+      }
+      if (agg.layout?.s1WidgetConfigs && typeof agg.layout.s1WidgetConfigs === "object") {
+        setS1WidgetConfigs((prev: any) => ({ ...prev, ...agg.layout.s1WidgetConfigs }));
+        s1WidgetConfigsRef.current = { ...s1WidgetConfigsRef.current, ...agg.layout.s1WidgetConfigs };
+      }
+      if (Array.isArray(agg.layout?.visibleCpWidgets)) {
+        setVisibleCpWidgets(agg.layout.visibleCpWidgets);
+        visibleCpWidgetsRef.current = agg.layout.visibleCpWidgets;
+      }
+    }
+    setLayoutLoaded(true);
 
-  // Load SentinelOne threats � if DB empty, auto-sync first
-  useEffect(() => {
-    if (!activeOrgSlug) return;
-    setS1Loading(true); setS1Error("");
-    fetch("/api/sentinelone/threats", { credentials: "include" })
-      .then(async r => {
-        const j = await r.json();
-        if (!r.ok) { setS1Error(j.message || "Fetch failed"); return; }
-        if (Array.isArray(j.data) && j.data.length > 0) {
-          setS1Data(j.data);
-        } else {
-          // DB empty � trigger sync then reload
-          fetch("/api/sentinelone/sync", { method: "POST", credentials: "include" })
-            .then(() => fetch("/api/sentinelone/threats", { credentials: "include" }))
-            .then(r2 => r2.json())
-            .then(j2 => { if (Array.isArray(j2.data)) setS1Data(j2.data); })
-            .catch(() => { });
-        }
-      })
-      .catch(e => setS1Error(e.message || "Fetch failed"))
-      .finally(() => setS1Loading(false));
-  }, [activeOrgSlug]);
+    // SentinelOne
+    if (Array.isArray(agg.sentinelone?.threats))          setS1Data(agg.sentinelone.threats);
+    if (Array.isArray(agg.sentinelone?.agents))           setAgentData(agg.sentinelone.agents);
+    if (Array.isArray(agg.sentinelone?.applicationAgent)) setAppAgentData(agg.sentinelone.applicationAgent);
+    if (Array.isArray(agg.sentinelone?.applicationCve))   setAppCveData(agg.sentinelone.applicationCve);
+    if (Array.isArray(agg.sentinelone?.deviceControl))    setDeviceControlData(agg.sentinelone.deviceControl);
+    if (Array.isArray(agg.sentinelone?.rss))              setRssData(agg.sentinelone.rss);
 
-  // Load agent info � if DB empty, auto-sync first
-  useEffect(() => {
-    if (!activeOrgSlug) return;
-    setAgentLoading(true); setAgentError("");
-    fetch("/api/sentinelone/sentinalone_agentinfo", { credentials: "include" })
-      .then(async r => {
-        const j = await r.json();
-        if (!r.ok) { setAgentError(j.message || "Fetch failed"); return; }
-        if (Array.isArray(j.data) && j.data.length > 0) {
-          setAgentData(j.data);
-        } else {
-          // DB empty � sync already triggered by threats hook, just reload after delay
-          setTimeout(() => {
-            fetch("/api/sentinelone/sentinalone_agentinfo", { credentials: "include" })
-              .then(r2 => r2.json())
-              .then(j2 => { if (Array.isArray(j2.data)) setAgentData(Array.isArray(j2.data) ? j2.data : []); })
-              .catch(() => { });
-          }, 5000);
-        }
-      })
-      .catch(e => setAgentError(e.message || "Fetch failed"))
-      .finally(() => setAgentLoading(false));
-  }, [activeOrgSlug]);
+    // Harmony
+    if (Array.isArray(agg.harmony?.events)) setCpEvents(agg.harmony.events);
 
-  // Load extra S1 DB tables (app-agent, app-cve, device-control, rss)
-  useEffect(() => {
-    if (!activeOrgSlug) return;
-    setAppAgentLoading(true);
-    fetch("/api/sentinelone/db/application-agent", { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d.data)) setAppAgentData(d.data); })
-      .catch(() => { })
-      .finally(() => setAppAgentLoading(false));
-  }, [activeOrgSlug]);
+    // Firewall widgets
+    if (Array.isArray(agg.firewall?.widgets)) setFwWidgets(agg.firewall.widgets);
 
-  useEffect(() => {
-    if (!activeOrgSlug) return;
-    setAppCveLoading(true);
-    fetch("/api/sentinelone/db/application-cve", { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d.data)) setAppCveData(d.data); })
-      .catch(() => { })
-      .finally(() => setAppCveLoading(false));
-  }, [activeOrgSlug]);
+    // Clear all loading states
+    setS1Loading(false);
+    setAgentLoading(false);
+    setAppAgentLoading(false);
+    setAppCveLoading(false);
+    setDeviceControlLoading(false);
+    setRssLoading(false);
+    setCpEventsLoading(false);
+  }, [aggregateData]);
 
-  useEffect(() => {
-    if (!activeOrgSlug) return;
-    setDeviceControlLoading(true);
-    fetch("/api/sentinelone/db/device-control", { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d.data)) setDeviceControlData(d.data); })
-      .catch(() => { })
-      .finally(() => setDeviceControlLoading(false));
-  }, [activeOrgSlug]);
-
-  useEffect(() => {
-    if (!activeOrgSlug) return;
-    setRssLoading(true);
-    fetch("/api/sentinelone/db/rss", { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d.data)) setRssData(d.data); })
-      .catch(() => { })
-      .finally(() => setRssLoading(false));
-  }, [activeOrgSlug]);
-
-  // Load Checkpoint Harmony events for widget cards
-  useEffect(() => {
-    if (!activeOrgSlug) return;
-    setCpEventsLoading(true);
-    fetch("/api/harmony/events-db", { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d.responseData)) setCpEvents(d.responseData); })
-      .catch(() => { })
-      .finally(() => setCpEventsLoading(false));
-  }, [activeOrgSlug]);
-
-  // Load firewall report
+  // Load firewall report (state-dependent — stays client-side)
   useEffect(() => {
     if (!activeOrgSlug || !fwReport) return;
-    setFwLoading(true); setFwError(""); setFwRaw(null);
-    fetch(`/api/firewall/reports/${fwReport}`, { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { if (d.message && d.data === undefined) setFwError(d.message); else { setFwRaw(d.data ?? null); setFwUpdated(d.updatedAt ?? null); } })
-      .catch(() => setFwError("Network error"))
-      .finally(() => setFwLoading(false));
+    function loadReport() {
+      setFwLoading(true); setFwError(""); setFwRaw(null);
+      fetch(`/api/firewall/reports/${fwReport}`, { credentials: "include" })
+        .then(r => r.json())
+        .then(d => { if (d.message && d.data === undefined) setFwError(d.message); else { setFwRaw(d.data ?? null); setFwUpdated(d.updatedAt ?? null); } })
+        .catch(() => setFwError("Network error"))
+        .finally(() => setFwLoading(false));
+    }
+    loadReport();
+    const id = setInterval(loadReport, 30 * 60 * 1000);
+    return () => clearInterval(id);
   }, [activeOrgSlug, fwReport]);
 
   // Auto-select axes when data loads
@@ -881,13 +803,7 @@ export default function DashboardPage() {
 
   return (
     <div className="p-3 sm:p-5 lg:p-6">
-      {/* <div>
-        <h2>SentinelOne Data</h2>
-
-        <pre>
-          {//JSON.stringify(data?.sentinel, null, 2)}
-        </pre>
-      </div> */}
+      <SyncTestWidget />
       {/* -- Header ----------------------------------------------------------- */}
       <div className="flex items-center justify-between gap-3 mb-5">
         <div>
@@ -2010,12 +1926,17 @@ function FwGraphWidget({ widget, onDelete, isEditMode }: { widget: any; onDelete
 
   useEffect(() => {
     if (!widget?.report_name) return;
-    setLoading(true); setError(""); setRaw(null);
-    fetch(`/api/firewall/reports/${widget.report_name}`, { credentials: "include" })
-      .then(r => r.json())
-      .then(d => { if (d.message && d.data === undefined) setError(d.message); else setRaw(d.data ?? null); })
-      .catch(() => setError("Network error"))
-      .finally(() => setLoading(false));
+    function loadWidget() {
+      setLoading(true); setError(""); setRaw(null);
+      fetch(`/api/firewall/reports/${widget.report_name}`, { credentials: "include" })
+        .then(r => r.json())
+        .then(d => { if (d.message && d.data === undefined) setError(d.message); else setRaw(d.data ?? null); })
+        .catch(() => setError("Network error"))
+        .finally(() => setLoading(false));
+    }
+    loadWidget();
+    const id = setInterval(loadWidget, 30 * 60 * 1000);
+    return () => clearInterval(id);
   }, [widget?.report_name]);
 
   const table = raw ? extractTable(raw) : null;

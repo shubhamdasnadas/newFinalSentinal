@@ -81,7 +81,7 @@ export default function CreateOrgModal({ onClose, onCreated }: Props) {
               onChange={handleChange}
               required
               placeholder="Acme Inc"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
 
@@ -94,7 +94,7 @@ export default function CreateOrgModal({ onClose, onCreated }: Props) {
                 value={form.industry}
                 onChange={handleChange}
                 placeholder="SaaS"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -103,7 +103,7 @@ export default function CreateOrgModal({ onClose, onCreated }: Props) {
                 name="plan"
                 value={form.plan}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
               >
                 <option value="free">Free</option>
                 <option value="starter">Starter</option>
@@ -121,7 +121,7 @@ export default function CreateOrgModal({ onClose, onCreated }: Props) {
               value={form.website}
               onChange={handleChange}
               placeholder="https://..."
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
 
@@ -133,7 +133,7 @@ export default function CreateOrgModal({ onClose, onCreated }: Props) {
               value={form.description}
               onChange={handleChange}
               rows={3}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
             />
           </div>
 

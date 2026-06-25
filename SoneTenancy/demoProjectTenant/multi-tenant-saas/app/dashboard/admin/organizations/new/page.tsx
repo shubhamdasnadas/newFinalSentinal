@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "../../../../context/AuthContext";
 
 export default function NewOrganizationPage() {
   const router = useRouter();
+  const { refreshOrgs } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -41,6 +43,7 @@ export default function NewOrganizationPage() {
         return;
       }
 
+      await refreshOrgs();
       router.push("/dashboard/admin/organizations");
     } catch {
       setError("Network error. Please try again.");

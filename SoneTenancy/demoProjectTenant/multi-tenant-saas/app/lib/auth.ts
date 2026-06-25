@@ -10,11 +10,9 @@ export interface TokenPayload {
   orgId?: string;
   orgSlug?: string;
   orgName?: string;
-  orgColor?: string;
   activeOrgId?: string;
   activeOrgSlug?: string;
   activeOrgName?: string;
-  activeOrgColor?: string;
   allowedPages?: string[];
   pendingOrgIds?: string[];
   memberOrgIds?: string[];
