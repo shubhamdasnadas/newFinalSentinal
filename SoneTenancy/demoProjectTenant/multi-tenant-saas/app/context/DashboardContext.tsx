@@ -91,8 +91,8 @@ export function DashboardProvider({
         const syncInterval = setInterval(() => {
             console.log("[Dashboard] 15-min interval fired.", new Date().toLocaleTimeString());
             syncAndRefresh();
-        }, 5 * 60 * 1000);
-        const credInterval = setInterval(fetchCredentials, 5*60_000);
+        }, 1 * 60 * 1000);
+        const credInterval = setInterval(fetchCredentials, 60_000);
 
         return () => {
             clearInterval(syncInterval);
