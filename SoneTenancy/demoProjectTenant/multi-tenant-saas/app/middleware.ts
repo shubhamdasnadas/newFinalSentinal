@@ -12,8 +12,10 @@ export function middleware(req: NextRequest) {
   try {
     const user = verifyToken(token);
 
-    // Super admin trying to access org-specific pages without active org
-    // Allow — they'll see a "select org" prompt in the UI
+    // Users with a pending token (multiple org matches) must pick an org first
+    if (user.pendingOrgIds?.length && req.nextUrl.pathname.startsWith("/dashboard")) {
+      return NextResponse.redirect(new URL("/select-org", req.url));
+    }
 
     return NextResponse.next();
   } catch {
@@ -24,5 +26,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/select-org"],
 };

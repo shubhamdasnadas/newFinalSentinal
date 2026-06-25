@@ -18,6 +18,16 @@ async function runSentinelOneSync() {
   const creds = await credsRes.json();
   if (!creds.accountId || !creds.tokenKey) return;
 
+
+
+
+
+
+
+
+
+  
+
   for (const path of S1_SYNC_APIS) {
     try {
       await fetch(`${path}?accountId=${encodeURIComponent(creds.accountId)}`, {
@@ -55,32 +65,11 @@ async function runHarmonySync() {
   });
 }
 
+// NOTE: This component used to trigger sync calls from the browser.
+// That breaks logout-safety because long-running work was tied to the browser session.
+// Sync is now handled by server-side workers using DB-backed jobs.
 export default function BackgroundSync() {
-  const s1InFlight = useRef(false);
-  const harmonyInFlight = useRef(false);
-
-  useEffect(() => {
-    const s1Id = setInterval(async () => {
-      if (s1InFlight.current) return;
-      s1InFlight.current = true;
-      try { await runSentinelOneSync(); }
-      catch { /* ignore */ }
-      finally { s1InFlight.current = false; }
-    }, SYNC_INTERVAL_MS);
-
-    const harmonyId = setInterval(async () => {
-      if (harmonyInFlight.current) return;
-      harmonyInFlight.current = true;
-      try { await runHarmonySync(); }
-      catch { /* ignore */ }
-      finally { harmonyInFlight.current = false; }
-    }, SYNC_INTERVAL_MS);
-
-    return () => {
-      clearInterval(s1Id);
-      clearInterval(harmonyId);
-    };
-  }, []);
-
+  // Intentionally no-op.
   return null;
 }
+

@@ -4,6 +4,7 @@ import { useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import TopBar from "../components/TopBar";
 import BackgroundSync from "../components/BackgroundSync";
+import SyncJobStatusPanel from "../components/SyncJobStatusPanel";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -17,9 +18,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <TopBar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          {children}
-        </main>
+        <div className="p-3 sm:p-5">
+          <SyncJobStatusPanel />
+        </div>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
       </div>
     </div>
   );

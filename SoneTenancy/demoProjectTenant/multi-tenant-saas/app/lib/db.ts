@@ -34,7 +34,7 @@ declare global {
 
 export const masterPool: Pool =
   global.__masterPool ??
-  new Pool({ ...BASE, database: process.env.PG_DATABASE || "P4C" });
+new Pool({ ...BASE, database: process.env.PG_DATABASE || "CISO" });
 
 if (process.env.NODE_ENV !== "production") {
   global.__masterPool = masterPool;
@@ -288,23 +288,7 @@ CREATE TABLE IF NOT EXISTS dashboard_layout (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-// CREATE TABLE IF NOT EXISTS news_articles (
-//   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-//   source_id    TEXT,
-//   source_name  TEXT,
-//   author       TEXT,
-//   title        TEXT        NOT NULL,
-//   description  TEXT,
-//   url          TEXT        NOT NULL UNIQUE,
-//   url_to_image TEXT,
-//   published_at TIMESTAMPTZ,
-//   content      TEXT,
-//   query_term   TEXT        NOT NULL DEFAULT 'cybersecurity',
-//   fetched_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-// );
 
-// CREATE INDEX IF NOT EXISTS idx_news_query_term   ON news_articles(query_term);
-// CREATE INDEX IF NOT EXISTS idx_news_published_at ON news_articles(published_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_org_users_email        ON org_users(email);
 CREATE INDEX IF NOT EXISTS idx_notifications_target   ON notifications(target_user);

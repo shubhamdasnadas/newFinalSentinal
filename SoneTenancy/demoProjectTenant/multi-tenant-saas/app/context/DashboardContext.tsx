@@ -49,17 +49,17 @@ export function DashboardProvider({
 
         const [s1Result, harmonyResult, firewallResult] = await Promise.allSettled([
             creds.sentinel?.tokenKey
-                ? fetch("/api/sentinelone/sync", {
+                ? fetch("/api/sync-jobs/create", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ tokenKey: creds.sentinel.tokenKey }),
+                      body: JSON.stringify({ source: "sentinelone" }),
                   }).then((r) => r.json())
                 : Promise.resolve("skipped — no S1 tokenKey"),
             creds.harmony?.token
-                ? fetch("/api/harmony/sync", {
+                ? fetch("/api/sync-jobs/create", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ token: creds.harmony.token }),
+                      body: JSON.stringify({ source: "harmony" }),
                   }).then((r) => r.json())
                 : Promise.resolve("skipped — no Harmony token"),
             creds.firewall?.baseUrl
@@ -70,6 +70,7 @@ export function DashboardProvider({
                   }).then((r) => r.json())
                 : Promise.resolve("skipped — no firewall credentials"),
         ]);
+
 
         console.log("[Dashboard] SentinelOne sync:", s1Result.status === "fulfilled" ? s1Result.value : s1Result.reason);
         console.log("[Dashboard] Harmony sync:", harmonyResult.status === "fulfilled" ? harmonyResult.value : harmonyResult.reason);
@@ -87,18 +88,16 @@ export function DashboardProvider({
     };
 
     useEffect(() => {
-        syncAndRefresh();
-        const syncInterval = setInterval(() => {
-            console.log("[Dashboard] 15-min interval fired.", new Date().toLocaleTimeString());
-            syncAndRefresh();
-        }, 1 * 60 * 1000);
+        // Credentials refresh only (sync is now job/worker based and logout-safe).
+        fetchCredentials();
         const credInterval = setInterval(fetchCredentials, 60_000);
 
         return () => {
-            clearInterval(syncInterval);
             clearInterval(credInterval);
         };
     }, []);
+
+
 
     return (
         <DashboardContext.Provider value={data}>

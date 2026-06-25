@@ -116,12 +116,14 @@ export const OrgUserModel = {
 
   /**
    * Search across ALL active orgs — used during login.
-   * Iterates org databases to find the user.
+   * Returns ALL orgs where this email exists so the caller can
+   * try the password against each and pick the right one.
    */
-  async findByEmailAcrossOrgs(
+  async findAllByEmailAcrossOrgs(
     email: string,
     orgSlugs: string[]
-  ): Promise<(OrgUser & { org_slug: string }) | null> {
+  ): Promise<(OrgUser & { org_slug: string })[]> {
+    const matches: (OrgUser & { org_slug: string })[] = [];
     for (const slug of orgSlugs) {
       try {
         const rows = await orgQuery<OrgUser>(
@@ -129,12 +131,21 @@ export const OrgUserModel = {
           "SELECT * FROM org_users WHERE email = $1 LIMIT 1",
           [email.toLowerCase().trim()]
         );
-        if (rows[0]) return { ...rows[0], org_slug: slug };
+        if (rows[0]) matches.push({ ...rows[0], org_slug: slug });
       } catch {
         // org DB might not exist yet — skip
       }
     }
-    return null;
+    return matches;
+  },
+
+  /** @deprecated Use findAllByEmailAcrossOrgs to handle duplicate emails across orgs */
+  async findByEmailAcrossOrgs(
+    email: string,
+    orgSlugs: string[]
+  ): Promise<(OrgUser & { org_slug: string }) | null> {
+    const all = await this.findAllByEmailAcrossOrgs(email, orgSlugs);
+    return all[0] ?? null;
   },
 
   async findById(orgSlug: string, id: string): Promise<OrgUser | null> {

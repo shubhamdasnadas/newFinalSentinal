@@ -7,8 +7,9 @@
     "dev:local": "next dev --webpack",
     "build": "next build",
     "start": "next start -H 0.0.0.0",
+    "worker": "tsx worker.ts",
     "lint": "eslint",
-    "migrate": "\"C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe\" -U postgres -d P4C -f scripts/migrate.sql",
+    "migrate": "\"C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe\" -U postgres -d CISO -f scripts/migrate.sql",
     "seed": "npx tsx scripts/seed-pg.ts"
   },
   "dependencies": {
@@ -36,7 +37,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }
